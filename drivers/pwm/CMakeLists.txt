@@ -63,6 +63,7 @@ zephyr_library_sources_ifdef(CONFIG_PWM_NEORV32	pwm_neorv32.c)
 zephyr_library_sources_ifdef(CONFIG_PWM_WCH_GPTM        pwm_wch_gptm.c)
 zephyr_library_sources_ifdef(CONFIG_PWM_AMBIQ_TIMER   pwm_ambiq_timer.c)
 zephyr_library_sources_ifdef(CONFIG_PWM_AMBIQ_CTIMER   pwm_ambiq_ctimer.c)
+zephyr_library_sources_ifdef(CONFIG_PWM_SOPHGO_CVI	pwm_sophgo_cvi.c)
 
 zephyr_library_sources_ifdef(CONFIG_USERSPACE   pwm_handlers.c)
 zephyr_library_sources_ifdef(CONFIG_PWM_CAPTURE pwm_capture.c)
