@@ -4333,6 +4333,25 @@ SPDX Tooling:
   labels:
     - "area: SPDX Tooling"
 
+SOPHGO Platforms:
+  status: maintained
+  maintainers:
+    - xingrz
+  collaborators:
+    - lenghonglin
+  files:
+    - boards/common/cvi-fiptool.board.cmake
+    - boards/milkv/duo/
+    - boards/milkv/duos/
+    - dts/riscv/sophgo/
+    - dts/bindings/*/sophgo,*
+    - drivers/*/*.sophgo
+    - drivers/*/*_sophgo_*.c
+    - scripts/west_commands/runners/cvi-fiptool.py
+    - soc/sophgo/
+  labels:
+    - "platform: SOPHGO"
+
 STM32 Platforms:
   status: maintained
   maintainers:
