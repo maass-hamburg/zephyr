@@ -133,7 +133,7 @@ static bool spi_opentitan_rx_available(const struct spi_opentitan_cfg *cfg)
 	return !(sys_read32(cfg->base + SPI_HOST_STATUS_REG_OFFSET) & SPI_HOST_STATUS_RXEMPTY_BIT);
 }
 
-static void spi_opentitan_xfer(const struct device *dev, const bool gpio_cs_control)
+static void spi_opentitan_xfer(const struct device *dev)
 {
 	const struct spi_opentitan_cfg *cfg = dev->config;
 	struct spi_opentitan_data *data = dev->data;
@@ -203,9 +203,7 @@ static void spi_opentitan_xfer(const struct device *dev, const bool gpio_cs_cont
 	}
 
 	/* Deassert the CS line if required. */
-	if (gpio_cs_control) {
-		spi_context_cs_control(ctx, false);
-	}
+	spi_context_cs_control(ctx, false);
 
 	spi_context_complete(ctx, dev, 0);
 }
@@ -244,7 +242,6 @@ static int spi_opentitan_transceive(const struct device *dev,
 			  const struct spi_buf_set *rx_bufs)
 {
 	int rc = 0;
-	bool gpio_cs_control = false;
 	struct spi_opentitan_data *data = dev->data;
 
 	/* Lock the SPI Context */
@@ -264,13 +261,10 @@ static int spi_opentitan_transceive(const struct device *dev,
 	 * (default CSID: 0), so GPIO CS control will work in addition to HW
 	 * asserted (and presumably ignored) CS.
 	 */
-	if (config->cs) {
-		gpio_cs_control = true;
-		spi_context_cs_control(&data->ctx, true);
-	}
+	spi_context_cs_control(&data->ctx, true);
 
 	/* Perform transfer */
-	spi_opentitan_xfer(dev, gpio_cs_control);
+	spi_opentitan_xfer(dev);
 
 	rc = spi_context_wait_for_completion(&data->ctx);
 
