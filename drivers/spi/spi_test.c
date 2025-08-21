@@ -9,11 +9,11 @@
  * devices for the "vnd,spi" devicetree compatible used in test code.
  */
 
+ #define DT_DRV_COMPAT vnd_spi
+
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/drivers/spi/rtio.h>
-
-#define DT_DRV_COMPAT vnd_spi
 
 static int vnd_spi_transceive(const struct device *dev,
 			      const struct spi_config *spi_cfg,

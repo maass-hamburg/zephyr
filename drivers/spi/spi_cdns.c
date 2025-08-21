@@ -3,6 +3,9 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+
+#define DT_DRV_COMPAT cdns_spi
+
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/sys/sys_io.h>
@@ -832,5 +835,4 @@ static DEVICE_API(spi, spi_cdns_api) = {
 		irq_enable(DT_INST_IRQN(n));                                                       \
 	}
 
-#define DT_DRV_COMPAT cdns_spi
 DT_INST_FOREACH_STATUS_OKAY(SPI_CDNS_INIT)

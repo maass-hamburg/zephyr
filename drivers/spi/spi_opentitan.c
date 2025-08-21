@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+ #define DT_DRV_COMPAT lowrisc_opentitan_spi
+
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(spi_opentitan);
 
@@ -60,8 +62,6 @@ LOG_MODULE_REGISTER(spi_opentitan);
 /* Configopts register fields. */
 #define SPI_HOST_CONFIGOPTS_CPHA0_BIT BIT(30)
 #define SPI_HOST_CONFIGOPTS_CPOL0_BIT BIT(31)
-
-#define DT_DRV_COMPAT lowrisc_opentitan_spi
 
 struct spi_opentitan_data {
 	struct spi_context ctx;

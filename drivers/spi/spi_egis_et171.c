@@ -5,11 +5,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+ #define DT_DRV_COMPAT egis_et171_spi
+
 #include "spi_egis_et171.h"
 
 #include <zephyr/irq.h>
-
-#define DT_DRV_COMPAT egis_et171_spi
 
 typedef void (*et171_cfg_func_t)(void);
 #ifdef CONFIG_DCACHE
