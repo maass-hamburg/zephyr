@@ -53,10 +53,32 @@ LOG_MODULE_REGISTER(spi_nor, CONFIG_FLASH_LOG_LEVEL);
 #define ANY_INST_HAS_WP_GPIOS DT_ANY_INST_HAS_PROP_STATUS_OKAY(wp_gpios)
 #define ANY_INST_HAS_HOLD_GPIOS DT_ANY_INST_HAS_PROP_STATUS_OKAY(hold_gpios)
 #define ANY_INST_USE_4B_ADDR_OPCODES DT_ANY_INST_HAS_BOOL_STATUS_OKAY(use_4b_addr_opcodes)
-#define ANY_INST_HAS_FLSR \
-	DT_ANY_INST_HAS_BOOL_STATUS_OKAY(use_flag_status_register)
+#define ANY_INST_HAS_FLSR DT_ANY_INST_HAS_BOOL_STATUS_OKAY(use_flag_status_register)
 #define ANY_INST_USE_FAST_READ DT_ANY_INST_HAS_BOOL_STATUS_OKAY(use_fast_read)
 #define ANY_INST_REQUIRES_ULBPR DT_ANY_INST_HAS_BOOL_STATUS_OKAY(requires_ulbpr)
+
+#define SPI_NOR_HAS_BOOL_ALT(_prop, _alt)                                                   \
+	UTIL_AND(DT_ANY_INST_HAS_BOOL_STATUS_OKAY(_prop),                                   \
+		 UTIL_OR(DT_ALL_INST_HAS_BOOL_STATUS_OKAY(_prop), (_alt)))
+
+#define SPI_NOR_HAS_PROP_ALT(_prop, _alt)                                                   \
+	UTIL_AND(DT_ANY_INST_HAS_PROP_STATUS_OKAY(_prop),                                   \
+		 UTIL_OR(DT_ALL_INST_HAS_PROP_STATUS_OKAY(_prop), (_alt)))
+
+#define SPI_NOR_HAS_MXICY_MX25R_POWER_MODE                                                         \
+	SPI_NOR_HAS_PROP_ALT(mxicy_mx25r_power_mode, (DEV_CFG(dev)->mxicy_mx25r_power_mode_exist))
+#define SPI_NOR_HAS_DPD SPI_NOR_HAS_BOOL_ALT(has_dpd, (DEV_CFG(dev)->dpd_exist))
+#define SPI_NOR_HAS_DPD_WAKEUP_SEQUENCE                                                            \
+	SPI_NOR_HAS_PROP_ALT(dpd_wakeup_sequence, (DEV_CFG(dev)->dpd_wakeup_sequence_exist))
+#define SPI_NOR_HAS_RESET_GPIOS SPI_NOR_HAS_PROP_ALT(reset_gpios, (DEV_CFG(dev)->reset_gpios_exist))
+#define SPI_NOR_HAS_WP_GPIOS    SPI_NOR_HAS_PROP_ALT(wp_gpios, (DEV_CFG(dev)->wp_gpios_exist))
+#define SPI_NOR_HAS_HOLD_GPIOS  SPI_NOR_HAS_PROP_ALT(hold_gpios, (DEV_CFG(dev)->hold_gpios_exist))
+#define SPI_NOR_USE_4B_ADDR_OPCODES                                                                \
+	SPI_NOR_HAS_BOOL_ALT(use_4b_addr_opcodes, (DEV_CFG(dev)->use_4b_addr_opcodes))
+#define SPI_NOR_HAS_FLSR      SPI_NOR_HAS_BOOL_ALT(has_flsr, (DEV_CFG(dev)->has_flsr))
+#define SPI_NOR_USE_FAST_READ SPI_NOR_HAS_BOOL_ALT(use_fast_read, (DEV_CFG(dev)->use_fast_read))
+#define SPI_NOR_REQUIRES_ULBPR                                                                     \
+	SPI_NOR_HAS_BOOL_ALT(requires_ulbpr, (DEV_CFG(dev)->requires_ulbpr_exist))
 
 #ifdef CONFIG_SPI_NOR_ACTIVE_DWELL_MS
 #define ACTIVE_DWELL_MS CONFIG_SPI_NOR_ACTIVE_DWELL_MS
@@ -249,7 +271,7 @@ static inline const struct jesd216_erase_type *
 dev_erase_types(const struct device *dev)
 {
 #ifdef CONFIG_SPI_NOR_SFDP_MINIMAL
-	if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) && DEV_CFG(dev)->use_4b_addr_opcodes) {
+	if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 		return minimal_erase_types_4b;
 	}
 	return minimal_erase_types;
@@ -299,9 +321,7 @@ static const struct flash_parameters flash_nor_parameters = {
 static inline void record_entered_dpd(const struct device *const dev)
 {
 #if ANY_INST_HAS_DPD
-	const struct spi_nor_config *const driver_config = dev->config;
-
-	if (driver_config->dpd_exist) {
+	if (SPI_NOR_HAS_DPD) {
 		struct spi_nor_data *const driver_data = dev->data;
 
 		driver_data->ts_enter_dpd = k_uptime_get_32();
@@ -318,30 +338,27 @@ static inline void record_entered_dpd(const struct device *const dev)
 static inline void delay_until_exit_dpd_ok(const struct device *const dev)
 {
 	const struct spi_nor_config *const driver_config = dev->config;
+	struct spi_nor_data *const driver_data = dev->data;
+	int32_t since = (int32_t)(k_uptime_get_32() - driver_data->ts_enter_dpd);
 
-	if (driver_config->dpd_exist) {
-		struct spi_nor_data *const driver_data = dev->data;
-		int32_t since = (int32_t)(k_uptime_get_32() - driver_data->ts_enter_dpd);
+	/* If the time is negative the 32-bit counter has wrapped,
+	 * which is certainly long enough no further delay is
+	 * required.  Otherwise we have to check whether it's been
+	 * long enough taking into account necessary delays for
+	 * entering and exiting DPD.
+	 */
+	if (since >= 0) {
+		/* Subtract time required for DPD to be reached */
+		since -= driver_config->t_enter_dpd;
 
-		/* If the time is negative the 32-bit counter has wrapped,
-		 * which is certainly long enough no further delay is
-		 * required.  Otherwise we have to check whether it's been
-		 * long enough taking into account necessary delays for
-		 * entering and exiting DPD.
+		/* Subtract time required in DPD before exit */
+		since -= driver_config->t_dpdd_ms;
+
+		/* If the adjusted time is negative we have to wait
+		 * until it reaches zero before we can proceed.
 		 */
-		if (since >= 0) {
-			/* Subtract time required for DPD to be reached */
-			since -= driver_config->t_enter_dpd;
-
-			/* Subtract time required in DPD before exit */
-			since -= driver_config->t_dpdd_ms;
-
-			/* If the adjusted time is negative we have to wait
-			 * until it reaches zero before we can proceed.
-			 */
-			if (since < 0) {
-				k_sleep(K_MSEC((uint32_t)-since));
-			}
+		if (since < 0) {
+			k_sleep(K_MSEC((uint32_t)-since));
 		}
 	}
 }
@@ -511,7 +528,6 @@ static int spi_nor_access(const struct device *const dev,
  */
 static int spi_nor_wait_until_ready(const struct device *dev, k_timeout_t poll_delay)
 {
-	const struct spi_nor_config *cfg = dev->config;
 	int ret;
 	uint8_t reg;
 
@@ -522,7 +538,7 @@ static int spi_nor_wait_until_ready(const struct device *dev, k_timeout_t poll_d
 		 * status register since it allows better error detection. Also, some devices
 		 * that have it require it to be read after a program operation.
 		 */
-		if (IS_ENABLED(ANY_INST_HAS_FLSR) && cfg->has_flsr) {
+		if (SPI_NOR_HAS_FLSR) {
 			ret = spi_nor_cmd_read(dev, SPI_NOR_CMD_RDFLSR, &reg, sizeof(reg));
 			if (ret) {
 				break;
@@ -596,9 +612,8 @@ static int read_sfdp(const struct device *const dev,
 static int enter_dpd(const struct device *const dev)
 {
 	int ret = 0;
-	const struct spi_nor_config *cfg = dev->config;
 
-	if (cfg->dpd_exist) {
+	if (SPI_NOR_HAS_DPD) {
 		ret = spi_nor_cmd_write(dev, SPI_NOR_CMD_DPD);
 		if (ret == 0) {
 			record_entered_dpd(dev);
@@ -613,10 +628,10 @@ static int exit_dpd(const struct device *const dev)
 #if ANY_INST_HAS_DPD
 	const struct spi_nor_config *cfg = dev->config;
 
-	if (cfg->dpd_exist) {
+	if (SPI_NOR_HAS_DPD) {
 		delay_until_exit_dpd_ok(dev);
 
-		if (cfg->dpd_wakeup_sequence_exist) {
+		if (SPI_NOR_HAS_DPD_WAKEUP_SEQUENCE) {
 #if ANY_INST_HAS_DPD_WAKEUP_SEQUENCE
 			/* Assert CSn and wait for tCRDP.
 			 *
@@ -636,9 +651,7 @@ static int exit_dpd(const struct device *const dev)
 
 #if ANY_INST_HAS_T_EXIT_DPD
 			if (ret == 0) {
-				if (cfg->dpd_exist) {
-					k_sleep(K_MSEC(cfg->t_exit_dpd));
-				}
+				k_sleep(K_MSEC(cfg->t_exit_dpd));
 			}
 #endif /* T_EXIT_DPD */
 		}
@@ -741,7 +754,7 @@ static int mxicy_rdcr(const struct device *dev)
 	const struct spi_nor_config *cfg = dev->config;
 	uint16_t cr = -ENOSYS;
 
-	if (cfg->mxicy_mx25r_power_mode_exist) {
+	if (SPI_NOR_HAS_MXICY_MX25R_POWER_MODE) {
 		int ret = spi_nor_cmd_read(dev, CMD_RDCR, &cr, sizeof(cr));
 
 		if (ret < 0) {
@@ -766,7 +779,6 @@ static int mxicy_rdcr(const struct device *dev)
 static int mxicy_wrcr(const struct device *dev,
 			uint16_t cr)
 {
-	const struct spi_nor_config *cfg = dev->config;
 	int ret = -ENOSYS;
 	/* The configuration register bytes on the Macronix MX25R devices are
 	 * written using the Write Status Register command where the configuration
@@ -774,7 +786,7 @@ static int mxicy_wrcr(const struct device *dev,
 	 * First read out the current status register to preserve the value.
 	 */
 
-	if (cfg->mxicy_mx25r_power_mode_exist) {
+	if (SPI_NOR_HAS_MXICY_MX25R_POWER_MODE) {
 		int sr = spi_nor_rdsr(dev);
 
 		if (sr < 0) {
@@ -810,7 +822,7 @@ static int mxicy_configure(const struct device *dev, const uint8_t *jedec_id)
 	const struct spi_nor_config *cfg = dev->config;
 	int ret = -ENOSYS;
 
-	if (cfg->mxicy_mx25r_power_mode_exist) {
+	if (SPI_NOR_HAS_MXICY_MX25R_POWER_MODE) {
 		/* Low-power/high perf mode is second bit in configuration register 2 */
 		int current_cr, new_cr;
 		/* lh_switch enum index:
@@ -862,7 +874,6 @@ static int mxicy_configure(const struct device *dev, const uint8_t *jedec_id)
 static int spi_nor_read(const struct device *dev, off_t addr, void *dest,
 			size_t size)
 {
-	const struct spi_nor_config *cfg = dev->config;
 	const size_t flash_size = dev_flash_size(dev);
 	int ret;
 
@@ -878,9 +889,9 @@ static int spi_nor_read(const struct device *dev, off_t addr, void *dest,
 
 	acquire_device(dev);
 
-	if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) && cfg->use_4b_addr_opcodes) {
+	if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 		if (addr > SPI_NOR_3B_ADDR_MAX) {
-			if (IS_ENABLED(ANY_INST_USE_FAST_READ) && cfg->use_fast_read) {
+			if (SPI_NOR_USE_FAST_READ) {
 				ret = spi_nor_cmd_addr_fast_read_4b(dev, SPI_NOR_CMD_READ_FAST_4B,
 								    addr, dest, size);
 			} else {
@@ -888,7 +899,7 @@ static int spi_nor_read(const struct device *dev, off_t addr, void *dest,
 							       size);
 			}
 		} else {
-			if (IS_ENABLED(ANY_INST_USE_FAST_READ) && cfg->use_fast_read) {
+			if (SPI_NOR_USE_FAST_READ) {
 				ret = spi_nor_cmd_addr_fast_read_3b(dev, SPI_NOR_CMD_READ_FAST,
 								    addr, dest, size);
 			} else {
@@ -897,7 +908,7 @@ static int spi_nor_read(const struct device *dev, off_t addr, void *dest,
 			}
 		}
 	} else {
-		if (IS_ENABLED(ANY_INST_USE_FAST_READ) && cfg->use_fast_read) {
+		if (SPI_NOR_USE_FAST_READ) {
 			ret = spi_nor_cmd_addr_fast_read(dev, SPI_NOR_CMD_READ_FAST, addr, dest,
 							 size);
 		} else {
@@ -986,8 +997,7 @@ static int spi_nor_write(const struct device *dev, off_t addr,
 				break;
 			}
 
-			if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) &&
-			    DEV_CFG(dev)->use_4b_addr_opcodes) {
+			if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 				if (addr > SPI_NOR_3B_ADDR_MAX) {
 					ret = spi_nor_cmd_addr_write_4b(dev, SPI_NOR_CMD_PP_4B,
 									addr, src, to_write);
@@ -1084,8 +1094,7 @@ static int spi_nor_erase(const struct device *dev, off_t addr, size_t size)
 				}
 			}
 			if (bet != NULL) {
-				if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) &&
-				    DEV_CFG(dev)->use_4b_addr_opcodes) {
+				if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 					ret = spi_nor_cmd_addr_write_4b(dev, bet->cmd, addr, NULL,
 									0);
 				} else {
@@ -1128,19 +1137,17 @@ static int spi_nor_write_protection_set(const struct device *dev,
 	int ret = 0;
 
 #if ANY_INST_HAS_WP_GPIOS
-	if (DEV_CFG(dev)->wp_gpios_exist && !write_protect) {
+	if (SPI_NOR_HAS_WP_GPIOS && !write_protect) {
 		gpio_pin_set_dt(&(DEV_CFG(dev)->wp), 0);
 	}
 #endif
 
-	if (IS_ENABLED(ANY_INST_REQUIRES_ULBPR)
-	    && DEV_CFG(dev)->requires_ulbpr_exist
-	    && !write_protect) {
+	if (SPI_NOR_REQUIRES_ULBPR && !write_protect) {
 		ret = spi_nor_cmd_write(dev, SPI_NOR_CMD_ULBPR);
 	}
 
 #if ANY_INST_HAS_WP_GPIOS
-	if (DEV_CFG(dev)->wp_gpios_exist && write_protect) {
+	if (SPI_NOR_HAS_WP_GPIOS && write_protect) {
 		gpio_pin_set_dt(&(DEV_CFG(dev)->wp), 1);
 	}
 #endif
@@ -1311,7 +1318,7 @@ static int spi_nor_process_bfp(const struct device *dev,
 		struct jesd216_bfp_dw16 dw16;
 		int rc = 0;
 
-		if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) && DEV_CFG(dev)->use_4b_addr_opcodes) {
+		if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 			LOG_DBG("4-byte addressing supported, using it via specific opcodes");
 			return 0;
 		}
@@ -1390,8 +1397,7 @@ static int spi_nor_process_sfdp(const struct device *dev)
 			}
 		}
 		if (id == JESD216_SFDP_PARAM_ID_4B_ADDR_INSTR) {
-			if (IS_ENABLED(ANY_INST_USE_4B_ADDR_OPCODES) &&
-			    DEV_CFG(dev)->use_4b_addr_opcodes) {
+			if (SPI_NOR_USE_4B_ADDR_OPCODES) {
 				/*
 				 * Check table 4 byte address instruction table to get supported
 				 * erase opcodes when running in 4 byte address mode
@@ -1533,8 +1539,7 @@ static int spi_nor_configure(const struct device *dev)
 	}
 
 #if ANY_INST_HAS_RESET_GPIOS
-
-	if (cfg->reset_gpios_exist) {
+	if (SPI_NOR_HAS_RESET_GPIOS) {
 		if (!gpio_is_ready_dt(&cfg->reset)) {
 			LOG_ERR("Reset pin not ready");
 			return -ENODEV;
@@ -1653,10 +1658,8 @@ static int spi_nor_configure(const struct device *dev)
 #endif /* CONFIG_SPI_NOR_SFDP_MINIMAL */
 
 #if ANY_INST_HAS_MXICY_MX25R_POWER_MODE
-	if (cfg->mxicy_mx25r_power_mode_exist) {
 	/* Do not fail init if setting configuration register fails */
-		(void)mxicy_configure(dev, jedec_id);
-	}
+	(void)mxicy_configure(dev, jedec_id);
 #endif /* ANY_INST_HAS_MXICY_MX25R_POWER_MODE */
 
 	return 0;
@@ -1713,7 +1716,7 @@ static int spi_nor_init(const struct device *dev)
 	}
 
 #if ANY_INST_HAS_WP_GPIOS
-	if (DEV_CFG(dev)->wp_gpios_exist) {
+	if (SPI_NOR_HAS_WP_GPIOS) {
 		if (!device_is_ready(DEV_CFG(dev)->wp.port)) {
 			LOG_ERR("Write-protect pin not ready");
 			return -ENODEV;
@@ -1725,7 +1728,7 @@ static int spi_nor_init(const struct device *dev)
 	}
 #endif /* ANY_INST_HAS_WP_GPIOS */
 #if ANY_INST_HAS_HOLD_GPIOS
-	if (DEV_CFG(dev)->hold_gpios_exist) {
+	if (SPI_NOR_HAS_HOLD_GPIOS) {
 		if (!device_is_ready(DEV_CFG(dev)->hold.port)) {
 			LOG_ERR("Hold pin not ready");
 			return -ENODEV;
