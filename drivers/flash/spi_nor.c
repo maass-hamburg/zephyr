@@ -61,9 +61,15 @@ LOG_MODULE_REGISTER(spi_nor, CONFIG_FLASH_LOG_LEVEL);
 	UTIL_AND(DT_ANY_INST_HAS_BOOL_STATUS_OKAY(_prop),                                   \
 		 UTIL_OR(DT_ALL_INST_HAS_BOOL_STATUS_OKAY(_prop), (_alt)))
 
+#define SPI_NOR_ONLY_SOME_HAS_BOOL(_prop) UTIL_AND(DT_ANY_INST_HAS_BOOL_STATUS_OKAY(_prop), \
+	UTIL_NOT(DT_ALL_INST_HAS_BOOL_STATUS_OKAY(_prop)))
+
 #define SPI_NOR_HAS_PROP_ALT(_prop, _alt)                                                   \
 	UTIL_AND(DT_ANY_INST_HAS_PROP_STATUS_OKAY(_prop),                                   \
 		 UTIL_OR(DT_ALL_INST_HAS_PROP_STATUS_OKAY(_prop), (_alt)))
+
+#define SPI_NOR_ONLY_SOME_HAS_PROP(_prop) UTIL_AND(DT_ANY_INST_HAS_PROP_STATUS_OKAY(_prop), \
+	UTIL_NOT(DT_ALL_INST_HAS_PROP_STATUS_OKAY(_prop)))
 
 #define SPI_NOR_HAS_MXICY_MX25R_POWER_MODE                                                         \
 	SPI_NOR_HAS_PROP_ALT(mxicy_mx25r_power_mode, (DEV_CFG(dev)->mxicy_mx25r_power_mode_exist))
@@ -79,6 +85,18 @@ LOG_MODULE_REGISTER(spi_nor, CONFIG_FLASH_LOG_LEVEL);
 #define SPI_NOR_USE_FAST_READ SPI_NOR_HAS_BOOL_ALT(use_fast_read, (DEV_CFG(dev)->use_fast_read))
 #define SPI_NOR_REQUIRES_ULBPR                                                                     \
 	SPI_NOR_HAS_BOOL_ALT(requires_ulbpr, (DEV_CFG(dev)->requires_ulbpr_exist))
+
+#define SPI_NOR_ONLY_SOME_HAS_MXICY_MX25R_POWER_MODE                                               \
+	SPI_NOR_ONLY_SOME_HAS_PROP(mxicy_mx25r_power_mode)
+#define SPI_NOR_ONLY_SOME_HAS_DPD                 SPI_NOR_ONLY_SOME_HAS_BOOL(has_dpd)
+#define SPI_NOR_ONLY_SOME_HAS_DPD_WAKEUP_SEQUENCE SPI_NOR_ONLY_SOME_HAS_PROP(dpd_wakeup_sequence)
+#define SPI_NOR_ONLY_SOME_HAS_RESET_GPIOS         SPI_NOR_ONLY_SOME_HAS_PROP(reset_gpios)
+#define SPI_NOR_ONLY_SOME_HAS_WP_GPIOS            SPI_NOR_ONLY_SOME_HAS_PROP(wp_gpios)
+#define SPI_NOR_ONLY_SOME_HAS_HOLD_GPIOS          SPI_NOR_ONLY_SOME_HAS_PROP(hold_gpios)
+#define SPI_NOR_ONLY_SOME_USE_4B_ADDR_OPCODES     SPI_NOR_ONLY_SOME_HAS_BOOL(use_4b_addr_opcodes)
+#define SPI_NOR_ONLY_SOME_HAS_FLSR                SPI_NOR_ONLY_SOME_HAS_BOOL(has_flsr)
+#define SPI_NOR_ONLY_SOME_USE_FAST_READ           SPI_NOR_ONLY_SOME_HAS_BOOL(use_fast_read)
+#define SPI_NOR_ONLY_SOME_REQUIRES_ULBPR          SPI_NOR_ONLY_SOME_HAS_BOOL(requires_ulbpr)
 
 #ifdef CONFIG_SPI_NOR_ACTIVE_DWELL_MS
 #define ACTIVE_DWELL_MS CONFIG_SPI_NOR_ACTIVE_DWELL_MS
@@ -166,18 +184,38 @@ struct spi_nor_config {
 #if ANY_INST_HAS_MXICY_MX25R_POWER_MODE
 	bool mxicy_mx25r_power_mode;
 #endif
+#if SPI_NOR_ONLY_SOME_USE_4B_ADDR_OPCODES
 	bool use_4b_addr_opcodes:1;
+#endif
 
 	/* exist flags for dts opt-ins */
+#if SPI_NOR_ONLY_SOME_HAS_DPD
 	bool dpd_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_DPD_WAKEUP_SEQUENCE
 	bool dpd_wakeup_sequence_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_MXICY_MX25R_POWER_MODE
 	bool mxicy_mx25r_power_mode_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_RESET_GPIOS
 	bool reset_gpios_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_ULBPR
 	bool requires_ulbpr_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_WP_GPIOS
 	bool wp_gpios_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_HOLD_GPIOS
 	bool hold_gpios_exist:1;
+#endif
+#if SPI_NOR_ONLY_SOME_HAS_FLSR
 	bool has_flsr: 1;
+#endif
+#if SPI_NOR_ONLY_SOME_USE_FAST_READ
 	bool use_fast_read: 1;
+#endif
 };
 
 /**
@@ -1889,17 +1927,28 @@ static DEVICE_API(flash, spi_nor_api) = {
 #define GENERATE_CONFIG_STRUCT(idx)								\
 	static const struct spi_nor_config spi_nor_##idx##_config = {				\
 		.spi = SPI_DT_SPEC_INST_GET(idx, SPI_WORD_SET(8), CONFIG_SPI_NOR_CS_WAIT_DELAY),\
-		.dpd_exist = DT_INST_PROP(idx, has_dpd),					\
-		.dpd_wakeup_sequence_exist = DT_INST_NODE_HAS_PROP(idx, dpd_wakeup_sequence),	\
-		.mxicy_mx25r_power_mode_exist =							\
-			DT_INST_NODE_HAS_PROP(idx, mxicy_mx25r_power_mode),			\
-		.reset_gpios_exist = DT_INST_NODE_HAS_PROP(idx, reset_gpios),			\
-		.requires_ulbpr_exist = DT_INST_PROP(idx, requires_ulbpr),			\
-		.wp_gpios_exist = DT_INST_NODE_HAS_PROP(idx, wp_gpios),				\
-		.hold_gpios_exist = DT_INST_NODE_HAS_PROP(idx, hold_gpios),			\
-		.use_4b_addr_opcodes = DT_INST_PROP(idx, use_4b_addr_opcodes),			\
-		.has_flsr = DT_INST_PROP(idx, use_flag_status_register),			\
-		.use_fast_read = DT_INST_PROP(idx, use_fast_read),				\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_DPD, (						\
+			.dpd_exist = DT_INST_PROP(idx, has_dpd),))				\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_DPD_WAKEUP_SEQUENCE, (				\
+			.dpd_wakeup_sequence_exist =						\
+				DT_INST_NODE_HAS_PROP(idx, dpd_wakeup_sequence),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_MXICY_MX25R_POWER_MODE, (			\
+			.mxicy_mx25r_power_mode_exist =						\
+				DT_INST_NODE_HAS_PROP(idx, mxicy_mx25r_power_mode),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_RESET_GPIOS, (					\
+			.reset_gpios_exist = DT_INST_NODE_HAS_PROP(idx, reset_gpios),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_ULBPR,	(					\
+			.requires_ulbpr_exist = DT_INST_PROP(idx, requires_ulbpr),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_WP_GPIOS, (					\
+			.wp_gpios_exist = DT_INST_NODE_HAS_PROP(idx, wp_gpios),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_HOLD_GPIOS, (					\
+			.hold_gpios_exist = DT_INST_NODE_HAS_PROP(idx, hold_gpios),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_USE_4B_ADDR_OPCODES, (				\
+			.use_4b_addr_opcodes = DT_INST_PROP(idx, use_4b_addr_opcodes),))	\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_HAS_FLSR, (					\
+			.has_flsr = DT_INST_PROP(idx, use_flag_status_register),))		\
+		IF_ENABLED(SPI_NOR_ONLY_SOME_USE_FAST_READ, (					\
+			.use_fast_read = DT_INST_PROP(idx, use_fast_read),))			\
 		IF_ENABLED(INST_HAS_LOCK(idx), (.has_lock = DT_INST_PROP(idx, has_lock),))	\
 		IF_ENABLED(ANY_INST_HAS_DPD, (INIT_T_ENTER_DPD(idx),))				\
 		IF_ENABLED(UTIL_AND(ANY_INST_HAS_DPD, ANY_INST_HAS_T_EXIT_DPD),			\
