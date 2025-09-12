@@ -48,7 +48,6 @@ struct sdhc_litex_data {
 	struct k_mutex lock;
 	struct k_sem cmd_done_sem;
 	struct k_sem dma_done_sem;
-	bool no_cmd23_set_block_count;
 	sdhc_interrupt_cb_t sdio_cb;
 	void *sdio_cb_user_data;
 	struct sdhc_host_props props;
@@ -216,6 +215,12 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 	struct sdhc_litex_data *dev_data = dev->data;
 	uint8_t data_event;
 
+	if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT) &&
+	    (data->blocks > 1)) {
+		litex_mmc_send_cmd(dev, SD_STOP_TRANSMISSION, SDCARD_CTRL_DATA_TRANSFER_NONE,
+				   data->blocks, NULL, SDCARD_CTRL_RESP_SHORT_BUSY);
+	}
+
 	switch (*transfer) {
 	case SDCARD_CTRL_DATA_TRANSFER_READ:
 	case SDCARD_CTRL_DATA_TRANSFER_WRITE:
@@ -223,11 +228,6 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 		break;
 	default:
 		return 0; /* No DMA for other commands */
-	}
-
-	if ((data->blocks > 1) && dev_data->no_cmd23_set_block_count) {
-		litex_mmc_send_cmd(dev, SD_STOP_TRANSMISSION, SDCARD_CTRL_DATA_TRANSFER_NONE,
-				   data->blocks, NULL, SDCARD_CTRL_RESP_SHORT_BUSY);
 	}
 
 	data_event = litex_read8(dev_config->core_data_event_addr);
@@ -255,17 +255,14 @@ static void sdhc_litex_do_dma(const struct device *dev, struct sdhc_command *cmd
 	const struct sdhc_litex_config *dev_config = dev->config;
 	struct sdhc_litex_data *dev_data = dev->data;
 	uint32_t response[4] = {0};
-	int ret;
 
 	LOG_DBG("Setting up DMA for command: opcode=%d, arg=0x%08x, blocks=%d, block_size=%d",
 		cmd->opcode, cmd->arg, data->blocks, data->block_size);
 
-	if (data->blocks > 1) {
-		ret = litex_mmc_send_cmd(dev, SD_SET_BLOCK_COUNT, SDCARD_CTRL_DATA_TRANSFER_NONE,
-					 data->blocks, response, SDCARD_CTRL_RESP_SHORT);
-
-		dev_data->no_cmd23_set_block_count =
-			((ret < 0) || (response[0U] & SD_R1_ERR_FLAGS));
+	if (!IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT) &&
+	    (data->blocks > 1)) {
+		litex_mmc_send_cmd(dev, SD_SET_BLOCK_COUNT, SDCARD_CTRL_DATA_TRANSFER_NONE,
+				   data->blocks, response, SDCARD_CTRL_RESP_SHORT);
 	}
 
 	k_sem_reset(&dev_data->dma_done_sem);
