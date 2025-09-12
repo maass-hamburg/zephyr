@@ -8,3 +8,14 @@ config SDHC_LITEX_LITESDCARD
 	select SDHC_SUPPORTS_NATIVE_MODE
 	help
 	  sdhc driver for LiteX LiteSDCard.
+
+if SDHC_LITEX_LITESDCARD
+
+config SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT
+	bool "No CMD23 set block count"
+	help
+	  Some cards do not support CMD23 to set the block count for multiple
+	  block read/write operations. Enabling this option will issue a STOP
+	  TRANSMISSION command at the end of each multiple block operation.
+
+endif # SDHC_LITEX_LITESDCARD
