@@ -161,8 +161,7 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 {
 	const struct sdhc_litex_config *dev_config = dev->config;
 	struct sdhc_litex_data *dev_data = dev->data;
-	uint8_t cmd_event = 0;
-	uint8_t ev_pending;
+	uint8_t cmd_event;
 
 	LOG_DBG("Requesting command: opcode=%d, transfer=%d, arg=0x%08x, response_len=%d", cmd,
 		transfer, arg, response_len);
@@ -172,21 +171,12 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 
 	k_sem_reset(&dev_data->cmd_done_sem);
 
-	ev_pending = litex_read8(dev_config->ev_pending_addr);
-	litex_write8(ev_pending, dev_config->ev_pending_addr);
-
 	litex_write8(1, dev_config->core_cmd_send_addr);
 
-	if (transfer != SDCARD_CTRL_DATA_TRANSFER_NONE ||
-	    response_len == SDCARD_CTRL_RESP_SHORT_BUSY) {
-		k_sem_take(&dev_data->cmd_done_sem, K_FOREVER);
+	litex_write8(litex_read8(dev_config->ev_enable_addr) | SDCARD_EV_CMD_DONE,
+		     dev_config->ev_enable_addr);
 
-		LOG_DBG("Command done event received");
-	} else {
-		while (!IS_BIT_SET(litex_read8(dev_config->core_cmd_event_addr),
-				   SDCARD_CORE_EVENT_DONE_BIT)) {
-		}
-	}
+	k_sem_take(&dev_data->cmd_done_sem, K_FOREVER);
 
 	if ((response_len != SDCARD_CTRL_RESP_NONE) && (response != NULL)) {
 		litex_read32_array(dev_config->core_cmd_response_addr, response, 4);
@@ -437,13 +427,12 @@ static int sdhc_litex_init(const struct device *dev)
 
 	LOG_DBG("Initializing SDHC LiteX driver");
 
-	litex_write8(0, dev_config->ev_enable_addr);
 	litex_write8(UINT8_MAX, dev_config->ev_pending_addr);
+	litex_write8(0, dev_config->ev_enable_addr);
 
 	dev_config->irq_config_func();
 
-	litex_write8(SDCARD_EV_BLOCK2MEM_DMA | SDCARD_EV_MEM2BLOCK_DMA | SDCARD_EV_CMD_DONE,
-		     dev_config->ev_enable_addr);
+	litex_write8(SDCARD_EV_BLOCK2MEM_DMA | SDCARD_EV_MEM2BLOCK_DMA, dev_config->ev_enable_addr);
 
 	litex_write8(SDCARD_PHY_SETTINGS_PHY_SPEED_1X, dev_config->phy_settings_addr);
 
@@ -460,27 +449,20 @@ static void sdhc_litex_irq_handler(const struct device *dev)
 {
 	struct sdhc_litex_data *dev_data = dev->data;
 	const struct sdhc_litex_config *dev_config = dev->config;
-	uint8_t ev_pending = litex_read8(dev_config->ev_pending_addr);
 	uint8_t ev_enable = litex_read8(dev_config->ev_enable_addr);
+	uint8_t ev_pending = litex_read8(dev_config->ev_pending_addr) & ev_enable;
 
-	if (IS_BIT_SET(ev_pending & ev_enable, SDCARD_EV_CMD_DONE_BIT)) {
+	if (IS_BIT_SET(ev_pending, SDCARD_EV_CMD_DONE_BIT)) {
 		k_sem_give(&dev_data->cmd_done_sem);
-		litex_write8(SDCARD_EV_CMD_DONE, dev_config->ev_pending_addr);
+		litex_write8(ev_enable & ~SDCARD_EV_CMD_DONE, dev_config->ev_enable_addr);
 	}
 
-	if (IS_BIT_SET(ev_pending & ev_enable, SDCARD_EV_CARD_DETECT_BIT)) {
-		litex_write8(SDCARD_EV_CARD_DETECT, dev_config->ev_pending_addr);
-	}
-
-	if (IS_BIT_SET(ev_pending & ev_enable, SDCARD_EV_BLOCK2MEM_DMA_BIT)) {
+	if (IS_BIT_SET(ev_pending, SDCARD_EV_BLOCK2MEM_DMA_BIT) ||
+	    IS_BIT_SET(ev_pending, SDCARD_EV_MEM2BLOCK_DMA_BIT)) {
 		k_sem_give(&dev_data->dma_done_sem);
-		litex_write8(SDCARD_EV_BLOCK2MEM_DMA, dev_config->ev_pending_addr);
 	}
 
-	if (IS_BIT_SET(ev_pending & ev_enable, SDCARD_EV_MEM2BLOCK_DMA_BIT)) {
-		k_sem_give(&dev_data->dma_done_sem);
-		litex_write8(SDCARD_EV_MEM2BLOCK_DMA, dev_config->ev_pending_addr);
-	}
+	litex_write8(ev_pending, dev_config->ev_pending_addr);
 }
 
 #define DEFINE_SDHC_LITEX(n)                                                                       \
