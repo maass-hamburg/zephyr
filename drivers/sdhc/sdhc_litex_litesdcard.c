@@ -11,6 +11,7 @@
 #include <zephyr/sys/util_macro.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/kernel.h>
+#include <zephyr/cache.h>
 
 LOG_MODULE_REGISTER(sdhc_litex, CONFIG_SDHC_LOG_LEVEL);
 
@@ -84,16 +85,14 @@ struct sdhc_litex_config {
 	mem_addr_t ev_enable_addr;
 };
 
-static void flush_cpu_dcache(void)
-{
-	__asm__ volatile(".word(0x500F)\n");
-}
+#define DEV_CFG(_dev_)  ((const struct sdhc_litex_config * const) (_dev_)->config)
+#define DEV_DATA(_dev_) ((struct sdhc_litex_data * const) (_dev_)->data)
 
-static void set_clk_divider(const struct sdhc_litex_config *dev_config, enum sdhc_clock_speed speed)
+static void set_clk_divider(const struct device *dev, enum sdhc_clock_speed speed)
 {
 	uint32_t divider = DIV_ROUND_UP(sys_clock_hw_cycles_per_sec(), speed);
 
-	litex_write16(CLAMP(divider, 2, 256), dev_config->phy_clocker_divider_addr);
+	litex_write16(CLAMP(divider, 2, 256), DEV_CFG(dev)->phy_clocker_divider_addr);
 }
 
 static void sdhc_litex_init_props(const struct device *dev)
@@ -111,20 +110,11 @@ static void sdhc_litex_init_props(const struct device *dev)
 	dev_data->props.max_current_330 = 0;
 	dev_data->props.host_caps.timeout_clk_freq = 0x01;
 	dev_data->props.host_caps.timeout_clk_unit = 1;
-	dev_data->props.host_caps.sd_base_clk = 0x00;
-	dev_data->props.host_caps.max_blk_len = 0b10;
 	dev_data->props.host_caps.bus_8_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH8BIT;
 	dev_data->props.host_caps.bus_4_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH4BIT;
-	dev_data->props.host_caps.adma_2_support = true;
-	dev_data->props.host_caps.high_spd_support = true;
-	dev_data->props.host_caps.sdma_support = true;
-	dev_data->props.host_caps.suspend_res_support = true;
 	dev_data->props.host_caps.vol_330_support = true;
 	dev_data->props.host_caps.vol_300_support = false;
 	dev_data->props.host_caps.vol_180_support = false;
-	dev_data->props.host_caps.address_64_bit_support_v4 = false;
-	dev_data->props.host_caps.address_64_bit_support_v3 = false;
-	dev_data->props.host_caps.sdio_async_interrupt_support = true;
 	dev_data->props.host_caps.sdr50_support = true;
 	dev_data->props.host_caps.sdr104_support = true;
 	dev_data->props.host_caps.ddr50_support = true;
@@ -132,12 +122,6 @@ static void sdhc_litex_init_props(const struct device *dev)
 	dev_data->props.host_caps.drv_type_a_support = true;
 	dev_data->props.host_caps.drv_type_c_support = true;
 	dev_data->props.host_caps.drv_type_d_support = true;
-	dev_data->props.host_caps.retune_timer_count = 0;
-	dev_data->props.host_caps.sdr50_needs_tuning = 0;
-	dev_data->props.host_caps.adma3_support = false;
-	dev_data->props.host_caps.vdd2_180_support = false;
-	dev_data->props.host_caps.hs200_support = false;
-	dev_data->props.host_caps.hs400_support = false;
 	dev_data->props.power_delay = dev_config->power_delay_ms;
 }
 
@@ -149,11 +133,6 @@ static int sdhc_litex_card_busy(const struct device *dev)
 			   SDCARD_CORE_EVENT_DONE_BIT) &&
 	       !IS_BIT_SET(litex_read8(dev_config->core_data_event_addr),
 			   SDCARD_CORE_EVENT_DONE_BIT);
-}
-
-static int sdhc_litex_reset(const struct device *dev)
-{
-	return 0;
 }
 
 static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t transfer, uint32_t arg,
@@ -232,8 +211,9 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 		return -EIO;
 	}
 
-	if (*transfer == SDCARD_CTRL_DATA_TRANSFER_READ) {
-		flush_cpu_dcache();
+	if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA) &&
+	    (*transfer == SDCARD_CTRL_DATA_TRANSFER_READ)) {
+		sys_cache_data_invd_range(data->data, data->block_size * data->blocks);
 	}
 
 	return 0;
@@ -261,6 +241,9 @@ static void sdhc_litex_do_dma(const struct device *dev, struct sdhc_command *cmd
 	case SD_WRITE_SINGLE_BLOCK:
 	case SD_WRITE_MULTIPLE_BLOCK:
 		*transfer = SDCARD_CTRL_DATA_TRANSFER_WRITE;
+		if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA)) {
+			sys_cache_data_flush_range(data->data, data->block_size * data->blocks);
+		}
 		litex_write8(0, dev_config->mem2block_dma_enable_addr);
 		litex_write64((uint64_t)(uintptr_t)(data->data),
 			      dev_config->mem2block_dma_base_addr);
@@ -349,9 +332,7 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 
 static int sdhc_litex_get_card_present(const struct device *dev)
 {
-	const struct sdhc_litex_config *dev_config = dev->config;
-
-	int ret = IS_BIT_SET(litex_read8(dev_config->phy_card_detect_addr), 0) ? 0 : 1;
+	int ret = IS_BIT_SET(litex_read8(DEV_CFG(dev)->phy_card_detect_addr), 0) ? 0 : 1;
 
 	LOG_DBG("Card present check: %s present", ret ? "" : "not");
 
@@ -360,9 +341,7 @@ static int sdhc_litex_get_card_present(const struct device *dev)
 
 static int sdhc_litex_get_host_props(const struct device *dev, struct sdhc_host_props *props)
 {
-	struct sdhc_litex_data *dev_data = dev->data;
-
-	memcpy(props, &dev_data->props, sizeof(struct sdhc_host_props));
+	*props = DEV_DATA(dev)->props;
 
 	return 0;
 }
@@ -380,7 +359,7 @@ static int sdhc_litex_set_io(const struct device *dev, struct sdhc_io *ios)
 			LOG_ERR("Speed range error %d", speed);
 			return -ENOTSUP;
 		}
-		set_clk_divider(dev_config, speed);
+		set_clk_divider(dev, speed);
 	}
 
 	if (ios->bus_width) {
@@ -409,21 +388,16 @@ static int sdhc_litex_set_io(const struct device *dev, struct sdhc_io *ios)
 }
 
 static DEVICE_API(sdhc, sdhc_litex_driver_api) = {
-	.reset = sdhc_litex_reset,
 	.request = sdhc_litex_request,
 	.set_io = sdhc_litex_set_io,
 	.get_card_present = sdhc_litex_get_card_present,
 	.card_busy = sdhc_litex_card_busy,
 	.get_host_props = sdhc_litex_get_host_props,
-	.enable_interrupt = NULL,
-	.disable_interrupt = NULL,
-	.execute_tuning = NULL,
 };
 
 static int sdhc_litex_init(const struct device *dev)
 {
 	const struct sdhc_litex_config *dev_config = dev->config;
-	struct sdhc_litex_data *dev_data = dev->data;
 
 	LOG_DBG("Initializing SDHC LiteX driver");
 
@@ -440,7 +414,7 @@ static int sdhc_litex_init(const struct device *dev)
 
 	LOG_DBG("SDHC LiteX driver initialized with properties: "
 		"f_min=%d, f_max=%d, bus_width=%d",
-		dev_data->props.f_min, dev_data->props.f_max, dev_config->bus_width);
+		DEV_DATA(dev)->props.f_min, DEV_DATA(dev)->props.f_max, dev_config->bus_width);
 
 	return 0;
 }
