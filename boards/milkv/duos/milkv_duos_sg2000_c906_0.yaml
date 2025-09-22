@@ -1,0 +1,15 @@
+identifier: milkv_duos/sg2000/c906_0
+name: Milk-V Duo S main processor
+type: mcu
+arch: riscv
+toolchain:
+  - zephyr
+ram: 2048
+supported:
+  - clock
+  - gpio
+  - interrupt-controller
+  - mailbox
+  - pinctrl
+  - pwm
+  - serial
