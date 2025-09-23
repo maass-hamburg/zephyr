@@ -52,6 +52,7 @@ struct sdhc_litex_data {
 	sdhc_interrupt_cb_t sdio_cb;
 	void *sdio_cb_user_data;
 	struct sdhc_host_props props;
+	k_timepoint_t timepoint;
 };
 
 /* SDHC configuration. */
@@ -144,6 +145,9 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 
 	LOG_DBG("Requesting command: opcode=%d, transfer=%d, arg=0x%08x, response_len=%d", cmd,
 		transfer, arg, response_len);
+
+	/* Ensure that there is a big enough delay between commands */
+	k_sleep(sys_timepoint_timeout(dev_data->timepoint));
 
 	litex_write32(arg, dev_config->core_cmd_argument_addr);
 	litex_write32(cmd << 8 | transfer << 5 | response_len, dev_config->core_cmd_command_addr);
@@ -324,6 +328,8 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 
 		tries++;
 	} while (tries <= cmd->retries);
+
+	dev_data->timepoint = sys_timepoint_calc(K_MSEC(1));
 
 	k_mutex_unlock(&dev_data->lock);
 
