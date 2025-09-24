@@ -11,6 +11,9 @@ config SDHC_LITEX_LITESDCARD
 
 if SDHC_LITEX_LITESDCARD
 
+configdefault SDHC_BUFFER_ALIGNMENT
+	default 4
+
 config SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT
 	bool "No CMD23 set block count"
 	help
