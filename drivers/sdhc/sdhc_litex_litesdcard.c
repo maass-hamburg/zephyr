@@ -51,7 +51,6 @@ struct sdhc_litex_data {
 	struct k_sem dma_done_sem;
 	sdhc_interrupt_cb_t sdio_cb;
 	void *sdio_cb_user_data;
-	struct sdhc_host_props props;
 	k_timepoint_t timepoint;
 };
 
@@ -63,7 +62,9 @@ struct sdhc_litex_config {
 	mem_addr_t phy_card_detect_addr;
 	mem_addr_t phy_clocker_divider_addr;
 	mem_addr_t phy_init_initialize_addr;
+	mem_addr_t phy_cmdr_timeout_addr;
 	mem_addr_t phy_dataw_status_addr;
+	mem_addr_t phy_datar_timeout_addr;
 	mem_addr_t phy_settings_addr;
 	mem_addr_t core_cmd_argument_addr;
 	mem_addr_t core_cmd_command_addr;
@@ -94,36 +95,6 @@ static void set_clk_divider(const struct device *dev, enum sdhc_clock_speed spee
 	uint32_t divider = DIV_ROUND_UP(sys_clock_hw_cycles_per_sec(), speed);
 
 	litex_write16(CLAMP(divider, 2, 256), DEV_CFG(dev)->phy_clocker_divider_addr);
-}
-
-static void sdhc_litex_init_props(const struct device *dev)
-{
-	struct sdhc_litex_data *dev_data = dev->data;
-	const struct sdhc_litex_config *dev_config = dev->config;
-
-	memset(&dev_data->props, 0, sizeof(struct sdhc_host_props));
-
-	dev_data->props.f_min = sys_clock_hw_cycles_per_sec() / 256;
-	dev_data->props.f_max = sys_clock_hw_cycles_per_sec() / 2;
-	dev_data->props.is_spi = 0;
-	dev_data->props.max_current_180 = 0;
-	dev_data->props.max_current_300 = 0;
-	dev_data->props.max_current_330 = 0;
-	dev_data->props.host_caps.timeout_clk_freq = 0x01;
-	dev_data->props.host_caps.timeout_clk_unit = 1;
-	dev_data->props.host_caps.bus_8_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH8BIT;
-	dev_data->props.host_caps.bus_4_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH4BIT;
-	dev_data->props.host_caps.vol_330_support = true;
-	dev_data->props.host_caps.vol_300_support = false;
-	dev_data->props.host_caps.vol_180_support = false;
-	dev_data->props.host_caps.sdr50_support = true;
-	dev_data->props.host_caps.sdr104_support = true;
-	dev_data->props.host_caps.ddr50_support = true;
-	dev_data->props.host_caps.uhs_2_support = false;
-	dev_data->props.host_caps.drv_type_a_support = true;
-	dev_data->props.host_caps.drv_type_c_support = true;
-	dev_data->props.host_caps.drv_type_d_support = true;
-	dev_data->props.power_delay = dev_config->power_delay_ms;
 }
 
 static int sdhc_litex_card_busy(const struct device *dev)
@@ -223,6 +194,41 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 	return 0;
 }
 
+static void sdhc_litex_prepare_dma(const struct device *dev, struct sdhc_command *cmd,
+			      struct sdhc_data *data, uint8_t *transfer)
+{
+	const struct sdhc_litex_config *dev_config = dev->config;
+
+	litex_write32(data->timeout_ms * (sys_clock_hw_cycles_per_sec() / MSEC_PER_SEC),
+		      dev_config->phy_datar_timeout_addr);
+
+	switch (cmd->opcode) {
+	case SD_WRITE_SINGLE_BLOCK:
+	case SD_WRITE_MULTIPLE_BLOCK:
+		*transfer = SDCARD_CTRL_DATA_TRANSFER_WRITE;
+		if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA)) {
+			sys_cache_data_flush_range(data->data, data->block_size * data->blocks);
+		}
+		litex_write8(0, dev_config->mem2block_dma_enable_addr);
+		litex_write64((uint64_t)(uintptr_t)(data->data),
+			      dev_config->mem2block_dma_base_addr);
+		litex_write32(data->block_size * data->blocks,
+			      dev_config->mem2block_dma_length_addr);
+		break;
+	default:
+		*transfer = SDCARD_CTRL_DATA_TRANSFER_READ;
+		litex_write8(0, dev_config->block2mem_dma_enable_addr);
+		litex_write64((uint64_t)(uintptr_t)(data->data),
+			      dev_config->block2mem_dma_base_addr);
+		litex_write32(data->block_size * data->blocks,
+			      dev_config->block2mem_dma_length_addr);
+		break;
+	}
+
+	litex_write16(data->block_size, dev_config->core_block_length_addr);
+	litex_write32(data->blocks, dev_config->core_block_count_addr);
+}
+
 static void sdhc_litex_do_dma(const struct device *dev, struct sdhc_command *cmd,
 			      struct sdhc_data *data, uint8_t *transfer)
 {
@@ -241,33 +247,13 @@ static void sdhc_litex_do_dma(const struct device *dev, struct sdhc_command *cmd
 
 	k_sem_reset(&dev_data->dma_done_sem);
 
-	switch (cmd->opcode) {
-	case SD_WRITE_SINGLE_BLOCK:
-	case SD_WRITE_MULTIPLE_BLOCK:
-		*transfer = SDCARD_CTRL_DATA_TRANSFER_WRITE;
-		if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA)) {
-			sys_cache_data_flush_range(data->data, data->block_size * data->blocks);
-		}
+	if (*transfer == SDCARD_CTRL_DATA_TRANSFER_WRITE) {
 		litex_write8(0, dev_config->mem2block_dma_enable_addr);
-		litex_write64((uint64_t)(uintptr_t)(data->data),
-			      dev_config->mem2block_dma_base_addr);
-		litex_write32(data->block_size * data->blocks,
-			      dev_config->mem2block_dma_length_addr);
 		litex_write8(1, dev_config->mem2block_dma_enable_addr);
-		break;
-	default:
-		*transfer = SDCARD_CTRL_DATA_TRANSFER_READ;
+	} else {
 		litex_write8(0, dev_config->block2mem_dma_enable_addr);
-		litex_write64((uint64_t)(uintptr_t)(data->data),
-			      dev_config->block2mem_dma_base_addr);
-		litex_write32(data->block_size * data->blocks,
-			      dev_config->block2mem_dma_length_addr);
 		litex_write8(1, dev_config->block2mem_dma_enable_addr);
-		break;
 	}
-
-	litex_write16(data->block_size, dev_config->core_block_length_addr);
-	litex_write32(data->blocks, dev_config->core_block_count_addr);
 }
 
 static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd,
@@ -281,6 +267,9 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 	int ret = 0;
 
 	k_mutex_lock(&dev_data->lock, K_FOREVER);
+
+	litex_write32(cmd->timeout_ms * (sys_clock_hw_cycles_per_sec() / MSEC_PER_SEC),
+		      dev_config->phy_cmdr_timeout_addr);
 
 	if (cmd->opcode == SD_GO_IDLE_STATE) {
 		litex_write8(BIT(0), dev_config->phy_init_initialize_addr);
@@ -300,6 +289,10 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 	default:
 		response_len = SDCARD_CTRL_RESP_SHORT;
 		break;
+	}
+
+	if (data != NULL) {
+		sdhc_litex_prepare_dma(dev, cmd, data, &transfer);
 	}
 
 	do {
@@ -347,7 +340,37 @@ static int sdhc_litex_get_card_present(const struct device *dev)
 
 static int sdhc_litex_get_host_props(const struct device *dev, struct sdhc_host_props *props)
 {
-	*props = DEV_DATA(dev)->props;
+	const struct sdhc_litex_config *dev_config = dev->config;
+
+	memset(props, 0, sizeof(struct sdhc_host_props));
+
+	props->f_min = sys_clock_hw_cycles_per_sec() / 256;
+	props->f_max = sys_clock_hw_cycles_per_sec() / 2;
+	props->is_spi = 0;
+	props->max_current_180 = 0;
+	props->max_current_300 = 0;
+	props->max_current_330 = 0;
+	props->host_caps.timeout_clk_freq = 0x01;
+	props->host_caps.timeout_clk_unit = 1;
+	props->host_caps.bus_8_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH8BIT;
+	props->host_caps.bus_4_bit_support = dev_config->bus_width >= SDHC_BUS_WIDTH4BIT;
+	props->host_caps.high_spd_support = true;
+	props->host_caps.vol_330_support = true;
+	props->host_caps.vol_300_support = false;
+	props->host_caps.vol_180_support = false;
+	props->host_caps.sdr50_support = true;
+	props->host_caps.sdr104_support = true;
+	props->host_caps.ddr50_support = false;
+	props->host_caps.uhs_2_support = false;
+	props->host_caps.drv_type_a_support = true;
+	props->host_caps.drv_type_c_support = true;
+	props->host_caps.drv_type_d_support = true;
+	props->power_delay = dev_config->power_delay_ms;
+
+	LOG_INF("SDHC LiteX driver initialized with properties: "
+		"f_min=%d, f_max=%d, bus_width=%d, 4/8-bit support=%d/%d",
+		props->f_min, props->f_max, dev_config->bus_width,
+		props->host_caps.bus_4_bit_support, props->host_caps.bus_8_bit_support);
 
 	return 0;
 }
@@ -355,16 +378,10 @@ static int sdhc_litex_get_host_props(const struct device *dev, struct sdhc_host_
 static int sdhc_litex_set_io(const struct device *dev, struct sdhc_io *ios)
 {
 	const struct sdhc_litex_config *dev_config = dev->config;
-	struct sdhc_litex_data *dev_data = dev->data;
-	struct sdhc_host_props *props = &dev_data->props;
 	enum sdhc_clock_speed speed = ios->clock;
 	uint8_t phy_settings = 0;
 
 	if (speed) {
-		if (speed < props->f_min || speed > props->f_max) {
-			LOG_ERR("Speed range error %d", speed);
-			return -ENOTSUP;
-		}
 		set_clk_divider(dev, speed);
 	}
 
@@ -416,12 +433,6 @@ static int sdhc_litex_init(const struct device *dev)
 
 	litex_write8(SDCARD_PHY_SETTINGS_PHY_SPEED_1X, dev_config->phy_settings_addr);
 
-	sdhc_litex_init_props(dev);
-
-	LOG_DBG("SDHC LiteX driver initialized with properties: "
-		"f_min=%d, f_max=%d, bus_width=%d",
-		DEV_DATA(dev)->props.f_min, DEV_DATA(dev)->props.f_max, dev_config->bus_width);
-
 	return 0;
 }
 
@@ -464,7 +475,9 @@ static void sdhc_litex_irq_handler(const struct device *dev)
 		.phy_card_detect_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_card_detect),              \
 		.phy_clocker_divider_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_clocker_divider),      \
 		.phy_init_initialize_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_init_initialize),      \
+		.phy_cmdr_timeout_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_cmdr_timeout),            \
 		.phy_dataw_status_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_dataw_status),            \
+		.phy_datar_timeout_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_datar_timeout),          \
 		.phy_settings_addr = DT_INST_REG_ADDR_BY_NAME(n, phy_settings),                    \
 		.core_cmd_argument_addr = DT_INST_REG_ADDR_BY_NAME(n, core_cmd_argument),          \
 		.core_cmd_command_addr = DT_INST_REG_ADDR_BY_NAME(n, core_cmd_command),            \
