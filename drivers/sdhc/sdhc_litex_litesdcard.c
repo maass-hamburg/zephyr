@@ -25,6 +25,7 @@ LOG_MODULE_REGISTER(sdhc_litex, CONFIG_SDHC_LOG_LEVEL);
 #define SDCARD_CTRL_RESP_SHORT      1
 #define SDCARD_CTRL_RESP_LONG       2
 #define SDCARD_CTRL_RESP_SHORT_BUSY 3
+#define SDCARD_CTRL_RESP_CRC        BIT(2)
 
 #define SDCARD_EV_CARD_DETECT_BIT   0
 #define SDCARD_EV_BLOCK2MEM_DMA_BIT 1
@@ -140,13 +141,16 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 	cmd_event = litex_read8(dev_config->core_cmd_event_addr);
 
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_ERROR_BIT)) {
+		LOG_WRN("Command error");
 		return -EIO;
 	}
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_TIMEOUT_BIT)) {
+		LOG_WRN("Command timeout");
 		return -ETIMEDOUT;
 	}
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_CRC_ERROR_BIT)) {
-		return -EIO;
+		LOG_WRN("Command CRC error");
+		return -EILSEQ;
 	}
 
 	return 0;
@@ -161,8 +165,14 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 
 	if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT) &&
 	    (data->blocks > 1)) {
+		uint8_t response_len = SDCARD_CTRL_RESP_CRC;
+
+		response_len |= (*transfer == SDCARD_CTRL_DATA_TRANSFER_READ)
+					? SDCARD_CTRL_RESP_SHORT
+					: SDCARD_CTRL_RESP_SHORT_BUSY;
+
 		litex_mmc_send_cmd(dev, SD_STOP_TRANSMISSION, SDCARD_CTRL_DATA_TRANSFER_NONE,
-				   data->blocks, NULL, SDCARD_CTRL_RESP_SHORT_BUSY);
+				   data->blocks, NULL, response_len);
 	}
 
 	switch (*transfer) {
@@ -177,13 +187,16 @@ static int sdhc_litex_wait_for_dma(const struct device *dev, struct sdhc_command
 	data_event = litex_read8(dev_config->core_data_event_addr);
 
 	if (IS_BIT_SET(data_event, SDCARD_CORE_EVENT_ERROR_BIT)) {
+		LOG_WRN("Data error");
 		return -EIO;
 	}
 	if (IS_BIT_SET(data_event, SDCARD_CORE_EVENT_TIMEOUT_BIT)) {
+		LOG_WRN("Data timeout");
 		return -ETIMEDOUT;
 	}
 	if (IS_BIT_SET(data_event, SDCARD_CORE_EVENT_CRC_ERROR_BIT)) {
-		return -EIO;
+		LOG_WRN("Data CRC error");
+		return -EILSEQ;
 	}
 
 	if (IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_COHERENT_DMA) &&
@@ -242,7 +255,8 @@ static void sdhc_litex_do_dma(const struct device *dev, struct sdhc_command *cmd
 	if (!IS_ENABLED(CONFIG_SDHC_LITEX_LITESDCARD_NO_CMD23_SET_BLOCK_COUNT) &&
 	    (data->blocks > 1)) {
 		litex_mmc_send_cmd(dev, SD_SET_BLOCK_COUNT, SDCARD_CTRL_DATA_TRANSFER_NONE,
-				   data->blocks, response, SDCARD_CTRL_RESP_SHORT);
+				   data->blocks, response,
+				   SDCARD_CTRL_RESP_SHORT | SDCARD_CTRL_RESP_CRC);
 	}
 
 	k_sem_reset(&dev_data->dma_done_sem);
@@ -281,13 +295,17 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 		response_len = SDCARD_CTRL_RESP_NONE;
 		break;
 	case SD_RSP_TYPE_R1b:
-		response_len = SDCARD_CTRL_RESP_SHORT_BUSY;
+		response_len = SDCARD_CTRL_RESP_SHORT_BUSY | SDCARD_CTRL_RESP_CRC;
 		break;
 	case SD_RSP_TYPE_R2:
-		response_len = SDCARD_CTRL_RESP_LONG;
+		response_len = SDCARD_CTRL_RESP_LONG | SDCARD_CTRL_RESP_CRC;
+		break;
+	case SD_RSP_TYPE_R3:
+	case SD_RSP_TYPE_R4:
+		response_len = SDCARD_CTRL_RESP_SHORT;
 		break;
 	default:
-		response_len = SDCARD_CTRL_RESP_SHORT;
+		response_len = SDCARD_CTRL_RESP_SHORT | SDCARD_CTRL_RESP_CRC;
 		break;
 	}
 
@@ -310,7 +328,7 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 			tries++;
 		} while (tries <= cmd->retries);
 
-		if (data == NULL) {
+		if (data == NULL || ret < 0) {
 			break; /* No data transfer, exit loop */
 		}
 
