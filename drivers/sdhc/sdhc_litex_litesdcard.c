@@ -52,7 +52,6 @@ struct sdhc_litex_data {
 	struct k_sem dma_done_sem;
 	sdhc_interrupt_cb_t sdio_cb;
 	void *sdio_cb_user_data;
-	k_timepoint_t timepoint;
 };
 
 /* SDHC configuration. */
@@ -118,9 +117,6 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 	LOG_DBG("Requesting command: opcode=%d, transfer=%d, arg=0x%08x, response_len=%d", cmd,
 		transfer, arg, response_len);
 
-	/* Ensure that there is a big enough delay between commands */
-	k_sleep(sys_timepoint_timeout(dev_data->timepoint));
-
 	litex_write32(arg, dev_config->core_cmd_argument_addr);
 	litex_write32(cmd << 8 | transfer << 5 | response_len, dev_config->core_cmd_command_addr);
 
@@ -141,15 +137,15 @@ static int litex_mmc_send_cmd(const struct device *dev, uint8_t cmd, uint8_t tra
 	cmd_event = litex_read8(dev_config->core_cmd_event_addr);
 
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_ERROR_BIT)) {
-		LOG_WRN("Command error");
+		LOG_WRN("Command error for cmd %d", cmd);
 		return -EIO;
 	}
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_TIMEOUT_BIT)) {
-		LOG_WRN("Command timeout");
+		LOG_WRN("Command timeout for cmd %d", cmd);
 		return -ETIMEDOUT;
 	}
 	if (IS_BIT_SET(cmd_event, SDCARD_CORE_EVENT_CRC_ERROR_BIT)) {
-		LOG_WRN("Command CRC error");
+		LOG_WRN("Command CRC error for cmd %d", cmd);
 		return -EILSEQ;
 	}
 
@@ -340,8 +336,6 @@ static int sdhc_litex_request(const struct device *dev, struct sdhc_command *cmd
 		tries++;
 	} while (tries <= cmd->retries);
 
-	dev_data->timepoint = sys_timepoint_calc(K_MSEC(1));
-
 	k_mutex_unlock(&dev_data->lock);
 
 	return ret;
@@ -385,7 +379,7 @@ static int sdhc_litex_get_host_props(const struct device *dev, struct sdhc_host_
 	props->host_caps.drv_type_d_support = true;
 	props->power_delay = dev_config->power_delay_ms;
 
-	LOG_INF("SDHC LiteX driver initialized with properties: "
+	LOG_INF("SDHC LiteX driver properties: "
 		"f_min=%d, f_max=%d, bus_width=%d, 4/8-bit support=%d/%d",
 		props->f_min, props->f_max, dev_config->bus_width,
 		props->host_caps.bus_4_bit_support, props->host_caps.bus_8_bit_support);
