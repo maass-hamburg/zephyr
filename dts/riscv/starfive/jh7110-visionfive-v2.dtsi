@@ -23,7 +23,8 @@
 			compatible = "sifive,s7", "riscv";
 			device_type = "cpu";
 			reg = <0>;
-			riscv,isa = "rv64imac_zicsr_zifencei";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "c", "zicsr", "zifencei";
 			status = "okay";
 
 			cpu0_intc: interrupt-controller {
@@ -49,7 +50,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&ccache>;
 			reg = <0x1>;
-			riscv,isa = "rv64imafdcg";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			tlb-spilt;
 
 			cpu1_intc: interrupt-controller {
@@ -75,7 +77,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&ccache>;
 			reg = <0x2>;
-			riscv,isa = "rv64imafdcg";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			tlb-split;
 
 			cpu2_intc: interrupt-controller {
@@ -101,7 +104,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&ccache>;
 			reg = <0x3>;
-			riscv,isa = "rv64imafdcg";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			tlb-split;
 
 			cpu3_intc: interrupt-controller {
@@ -127,7 +131,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&ccache>;
 			reg = <0x4>;
-			riscv,isa = "rv64imafdcg";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			tlb-split;
 
 			cpu4_intc: interrupt-controller {

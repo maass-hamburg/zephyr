@@ -35,7 +35,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&cachectrl>;
 			reg = <0>;
-			riscv,isa = "rv64gc";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			starfive,itim = <&itim0>;
 			status = "okay";
 			tlb-split;
@@ -65,7 +66,8 @@
 			mmu-type = "riscv,sv39";
 			next-level-cache = <&cachectrl>;
 			reg = <1>;
-			riscv,isa = "rv64gc";
+			riscv,isa-base = "rv64i";
+			riscv,isa-extensions = "i", "m", "a", "f", "d", "c", "zicsr", "zifencei";
 			starfive,itim = <&itim1>;
 			status = "okay";
 			tlb-split;
