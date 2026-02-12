@@ -503,6 +503,8 @@ Ethernet
   reworked to be used as active low, you may have to set the pin as
   ``GPIO_ACTIVE_LOW`` in devicetree (:github:`100751`).
 
+* The ``phy-handle`` property of :dtcompatible:`microchip,lan865x` must now be set to the phy node.
+
 File System
 ===========
 
