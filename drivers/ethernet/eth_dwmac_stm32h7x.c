@@ -32,7 +32,7 @@ PINCTRL_DT_INST_DEFINE(0);
 static const struct pinctrl_dev_config *eth0_pcfg =
 	PINCTRL_DT_INST_DEV_CONFIG_GET(0);
 
-static const struct stm32_pclken pclken[] = STM32_DT_CLOCKS(DT_INST_PARENT(0));
+static const struct stm32_pclken pclken[] = STM32_DT_INST_CLOCKS(0);
 
 int dwmac_bus_init(struct dwmac_priv *p)
 {
@@ -65,7 +65,7 @@ int dwmac_bus_init(struct dwmac_priv *p)
 	reg_val = sys_read32(reg_addr);
 	sys_write32(reg_val | 0x03800000, reg_addr);
 
-	p->base_addr = DT_REG_ADDR(DT_INST_PARENT(0));
+	p->base_addr = DT_INST_REG_ADDR(0);
 	return 0;
 }
 
