@@ -22,3 +22,5 @@ testing:
     - kernel
     - benchmark
     - ring_buffer
+supported:
+  - netif:eth

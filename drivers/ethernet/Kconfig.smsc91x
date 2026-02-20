@@ -8,3 +8,15 @@ config ETH_SMSC91X
 	select MDIO
 	help
 	  Enable driver for SMSC/LAN91x family of chips.
+
+if ETH_SMSC91X
+
+config ETH_SMSC91X_MDIO
+	bool "SMSC91x MDIO Controller"
+	default y
+	depends on MDIO
+	select ETH_DRIVER_WITH_MDIO
+	help
+	  Enable integrated MDIO controller
+
+endif # ETH_SMSC91X

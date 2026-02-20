@@ -140,6 +140,7 @@ static ALWAYS_INLINE void smsc_write_multi_2(struct smsc_data *sc, int offset, u
 	}
 }
 
+#ifdef CONFIG_ETH_SMSC91X_MDIO
 static uint32_t smsc_mii_bitbang_read(struct smsc_data *sc)
 {
 	uint16_t val;
@@ -269,6 +270,32 @@ static void smsc_miibus_writereg(struct smsc_data *sc, int phy, int reg, uint16_
 	SMSC_UNLOCK(sc);
 	irq_enable(sc->irq);
 }
+
+static int mdio_smsc_read(const struct device *dev, uint8_t prtad, uint8_t devad, uint16_t *data)
+{
+	struct eth_context *eth_data = dev->data;
+	struct smsc_data *sc = &eth_data->sc;
+
+	*data = smsc_miibus_readreg(sc, prtad, devad);
+
+	return 0;
+}
+
+static int mdio_smsc_write(const struct device *dev, uint8_t prtad, uint8_t devad, uint16_t data)
+{
+	struct eth_context *eth_data = dev->data;
+	struct smsc_data *sc = &eth_data->sc;
+
+	smsc_miibus_writereg(sc, prtad, devad, data);
+
+	return 0;
+}
+
+static DEVICE_API(mdio, mdio_smsc_api) = {
+	.read = mdio_smsc_read,
+	.write = mdio_smsc_write,
+};
+#endif /* CONFIG_ETH_SMSC91X_MDIO */
 
 static void smsc_reset(struct smsc_data *sc)
 {
@@ -774,12 +801,15 @@ static void eth_initialize(struct net_if *iface)
 	}
 }
 
-static const struct ethernet_api api_funcs = {
-	.iface_api.init   = eth_initialize,
-	.get_capabilities = eth_smsc_get_caps,
-	.get_phy          = eth_get_phy,
-	.set_config       = eth_smsc_set_config,
-	.send             = eth_tx,
+static DEVICE_API(ethernet, api_funcs) = {
+	.l2.iface_api.init   = eth_initialize,
+	.l2.get_capabilities = eth_smsc_get_caps,
+	.l2.get_phy          = eth_get_phy,
+	.l2.set_config       = eth_smsc_set_config,
+	.l2.send             = eth_tx,
+#ifdef CONFIG_ETH_SMSC91X_MDIO
+	.mdio                = &mdio_smsc_api,
+#endif
 };
 
 static void eth_smsc_isr(const struct device *dev)
@@ -830,7 +860,7 @@ int eth_init(const struct device *dev)
 static struct eth_context eth_0_context;
 
 static struct eth_config eth_0_config = {
-	DEVICE_MMIO_ROM_INIT(DT_PARENT(DT_DRV_INST(0))),
+	DEVICE_MMIO_ROM_INIT(DT_DRV_INST(0)),
 	.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(0, phy_handle)),
 };
 
@@ -838,46 +868,3 @@ ETH_NET_DEVICE_DT_INST_DEFINE(0,
 	eth_init, NULL, &eth_0_context,
 	&eth_0_config, CONFIG_ETH_INIT_PRIORITY,
 	&api_funcs, NET_ETH_MTU);
-
-#undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT smsc_lan91c111_mdio
-
-struct mdio_smsc_config {
-	const struct device *eth_dev;
-};
-
-static int mdio_smsc_read(const struct device *dev, uint8_t prtad, uint8_t devad, uint16_t *data)
-{
-	const struct mdio_smsc_config *cfg = dev->config;
-	const struct device *eth_dev = cfg->eth_dev;
-	struct eth_context *eth_data = eth_dev->data;
-	struct smsc_data *sc = &eth_data->sc;
-
-	*data = smsc_miibus_readreg(sc, prtad, devad);
-
-	return 0;
-}
-
-static int mdio_smsc_write(const struct device *dev, uint8_t prtad, uint8_t devad, uint16_t data)
-{
-	const struct mdio_smsc_config *cfg = dev->config;
-	const struct device *eth_dev = cfg->eth_dev;
-	struct eth_context *eth_data = eth_dev->data;
-	struct smsc_data *sc = &eth_data->sc;
-
-	smsc_miibus_writereg(sc, prtad, devad, data);
-
-	return 0;
-}
-
-static DEVICE_API(mdio, mdio_smsc_api) = {
-	.read = mdio_smsc_read,
-	.write = mdio_smsc_write,
-};
-
-const struct mdio_smsc_config mdio_smsc_config_0 = {
-	.eth_dev = DEVICE_DT_GET(DT_CHILD(DT_INST_PARENT(0), ethernet)),
-};
-
-DEVICE_DT_INST_DEFINE(0, NULL, NULL, NULL, &mdio_smsc_config_0, POST_KERNEL,
-		      CONFIG_MDIO_INIT_PRIORITY, &mdio_smsc_api);

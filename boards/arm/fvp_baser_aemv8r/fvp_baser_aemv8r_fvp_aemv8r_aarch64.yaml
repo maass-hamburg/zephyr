@@ -19,3 +19,5 @@ testing:
     - multi_heap
     - kernel
 vendor: arm
+supported:
+  - netif:eth

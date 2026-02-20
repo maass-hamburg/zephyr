@@ -18,6 +18,7 @@ supported:
   - gpio
   - uart
   - smp
+  - netif:eth
 testing:
   ignore_tags:
     - net

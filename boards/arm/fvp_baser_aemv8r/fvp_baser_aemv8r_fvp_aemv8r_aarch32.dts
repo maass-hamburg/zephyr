@@ -43,3 +43,11 @@
 	status = "okay";
 	current-speed = <115200>;
 };
+
+&eth {
+	status = "okay";
+};
+
+&phy {
+	status = "okay";
+};

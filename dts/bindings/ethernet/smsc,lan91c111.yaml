@@ -5,9 +5,12 @@ description: SMSC (now Microchip) LAN91C111 Ethernet controller
 
 compatible: "smsc,lan91c111"
 
-include: [ethernet-controller.yaml, base.yaml]
+include: [ethernet-controller.yaml, mdio-controller.yaml]
 
 properties:
+  reg:
+    required: true
+
   phy-handle:
     required: true
 
