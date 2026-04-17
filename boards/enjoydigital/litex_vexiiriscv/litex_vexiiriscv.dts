@@ -22,6 +22,7 @@
 		zephyr,sram = &ram0;
 		zephyr,flash-controller = &spiflash0;
 		zephyr,flash = &spiflash0;
+		zephyr,uhc = &uhc0;
 	};
 
 	aliases {
@@ -182,7 +183,7 @@
 				    "tx_buffers";
 			phy-handle = <&phy0>;
 			local-mac-address = [10 e2 d5 00 00 02];
-			status = "okay";
+			status = "disabled";
 		};
 
 		spi0: spi@f0007800 {
@@ -393,6 +394,15 @@
 				    "ev_pending",
 				    "ev_enable";
 			interrupts = <2 15>;
+			status = "okay";
+		};
+
+		uhc0: ohci@e0000000 {
+			compatible = "generic-ohci";
+			interrupt-parent = <&intc0>;
+			reg = <0xe0000000 0x100000>;
+			interrupts = <16 1>;
+			maximum-speed = "full-speed";
 			status = "okay";
 		};
 	};
