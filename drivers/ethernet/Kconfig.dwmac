@@ -14,21 +14,23 @@ config ETH_DWMAC
 	  4.x and 5.x are supported.
 
 	  Platform specific glue support is also required. This driver is
-	  currently available on targets using the STM32H7X series as an
-	  alternative to the eth_stm32_hal driver. Support for a generic DT
-	  and MMU based platform is also provided.
+	  currently available on STM32 targets (as an alternative to the
+	  eth_stm32_hal driver). Support for a generic DT and MMU based
+	  platform is also provided.
 
 	  Not yet implemented:
 	  - PTP support
 	  - VLAN support
 	  - various hardware offloads (when available)
 
-config ETH_DWMAC_STM32H7X
+config ETH_DWMAC_STM32
 	bool "Synopsys DesignWare MAC driver for STM32 series"
 	depends on !ETH_STM32_HAL
 	depends on SOC_SERIES_STM32H5X \
 		   || SOC_SERIES_STM32H7X \
-		   || SOC_SERIES_STM32H7RSX
+		   || SOC_SERIES_STM32H7RSX \
+		   || SOC_SERIES_STM32MP13X \
+		   || SOC_SERIES_STM32N6X
 	depends on DT_HAS_ST_STM32_ETHERNET_ENABLED
 	select ETH_DWMAC
 	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
@@ -37,8 +39,26 @@ config ETH_DWMAC_STM32H7X
 	select CRC
 	default y
 	help
-	  This enables the Synopsys DesignWare MAC driver on STM32 H5/H7/H7RS
-	  series SoCs.
+	  This enables the Synopsys DesignWare MAC driver on STM32 SoCs that
+	  integrate a Synopsys DesignWare Ethernet MAC (DWMAC/DWC EthernetQoS).
+
+	  Supported STM32 series:
+	    - STM32H5X  (H563/H573)   - SBS ETH MII/RMII selection
+	    - STM32H7X  (H743/H753/H735/H750) - SYSCFG ETH MII/RMII selection
+	    - STM32H7RSX (H7S7/H7R7)  - SBS ETH PHYSEL selection
+	    - STM32MP13X (MP135)       - SYSCFG ETH MII/RMII selection
+	    - STM32N6X  (N657)         - SBS ETH MII/RMII selection
+
+	  Note: STM32F1/F2/F4/F7 integrate an older Synopsys MAC variant
+	  (pre-QoS IP) that requires additional porting work in the core
+	  eth_dwmac.c driver and are therefore not yet supported here.
+
+# Backward-compatibility alias: ETH_DWMAC_STM32H7X was the previous name for
+# ETH_DWMAC_STM32.  Existing board configurations that set this symbol will
+# still work because selecting it also selects the new symbol.
+config ETH_DWMAC_STM32H7X
+	bool
+	select ETH_DWMAC_STM32
 
 config ETH_DWMAC_MMU
 	bool "Synopsys DesignWare MAC driver for MMU based platforms"
