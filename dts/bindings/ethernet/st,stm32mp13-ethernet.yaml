@@ -4,8 +4,19 @@
 description: |
   STM32MP13 Ethernet
 
-  This binding file describes the device tree properties required to configure
-  and use the Ethernet controller on STM32MP13 series microprocessor.
+  This binding describes the device tree properties required to configure
+  and use the Ethernet controllers on the STM32MP13 series (e.g. STM32MP135).
+
+  The STM32MP13 integrates two independent Synopsys DWC EthernetQoS MACs:
+    - ETH1 at 0x5800_A000 (SYSCFG ETH1 MII/RMII/RGMII selector)
+    - ETH2 at 0x5800_E000 (SYSCFG ETH2 MII/RMII/RGMII selector)
+
+  Both MACs support MII, RMII, and RGMII interface modes; the selected mode
+  must be specified via the phy-connection-type property.
+
+  On the STM32MP135F-DK board:
+    - ETH1 is connected to a Microchip LAN8742 PHY (RMII)
+    - ETH2 is connected to a Microchip KSZ9131RNX PHY (RGMII, 1 Gbps)
 
 compatible: "st,stm32mp13-ethernet"
 

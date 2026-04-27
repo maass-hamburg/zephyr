@@ -346,6 +346,28 @@
 			};
 		};
 
+		eth2: ethernet@5800e000 {
+			compatible = "st,stm32mp13-ethernet", "st,stm32h7-ethernet",
+				     "st,stm32-ethernet";
+			reg = <0x5800e000 0x2000>;
+			clock-names = "stm-eth", "mac-clk", "mac-clk-tx", "mac-clk-rx", "eth-ker";
+			clocks = <&rcc STM32_CLOCK(AHB6, 16)>,
+				 <&rcc STM32_CLOCK(AHB6, 17)>,
+				 <&rcc STM32_CLOCK(AHB6, 18)>,
+				 <&rcc STM32_CLOCK(AHB6, 19)>,
+				 <&rcc STM32_SRC_PLL4_Q ETH2_SEL(0)>;
+			interrupts = <GIC_SPI 120 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>,
+				     <GIC_SPI 121 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			status = "disabled";
+
+			mdio2: mdio {
+				compatible = "st,stm32-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				status = "disabled";
+			};
+		};
+
 		crc: crc1: crc@58009000 {
 			compatible = "st,stm32-crc";
 			reg = <0x58009000 0x1000>;
