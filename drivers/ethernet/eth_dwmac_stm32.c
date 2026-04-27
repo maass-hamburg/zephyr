@@ -8,22 +8,15 @@
  * STM32 platform-specific glue for the Synopsys DesignWare Ethernet MAC
  * (DWMAC / DWC EthernetQoS) driver.
  *
- * Supported STM32 SoC series:
- *   - STM32F1X  (F107 Connectivity Line) - AFIO MII/RMII selection
- *   - STM32F2X  (F207/F217)              - SYSCFG PMC MII/RMII selection
- *   - STM32F4X  (F407/F417/F427/F429/F437/F439) - SYSCFG PMC MII/RMII selection
- *   - STM32F7X  (F745/F756/F765/F777)    - SYSCFG PMC MII/RMII selection
+ * Supported STM32 SoC series (all integrate DWC EthernetQoS IP v4.x/v5.x):
  *   - STM32H5X  (H563/H573)              - SBS ETH MII/RMII selection
  *   - STM32H7X  (H743/H753/H735/H750)    - SYSCFG ETH MII/RMII selection
  *   - STM32H7RSX (H7S7/H7R7)             - SBS ETH PHYSEL MII/RMII selection
  *   - STM32MP13X (MP135)                 - SYSCFG ETH MII/RMII selection
  *   - STM32N6X  (N657)                   - SBS ETH MII/RMII selection
  *
- * Note: The core eth_dwmac.c driver targets the DWC EthernetQoS IP (v4.x/v5.x)
- * as found in STM32H5/H7/H7RS/N6/MP13.  STM32F1/F2/F4/F7 integrate an older
- * variant of the Synopsys MAC and may require additional porting work in the
- * core driver; the glue layer below correctly initialises the clock and the
- * PHY-interface-mode register for all listed series.
+ * Not yet supported (older Synopsys MAC IP, requires core driver porting):
+ *   - STM32F1X, STM32F2X, STM32F4X, STM32F7X
  */
 
 #define LOG_MODULE_NAME dwmac_plat
@@ -62,51 +55,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
  * The phy-connection-type property in the device tree node selects the mode.
  */
 
-#if defined(CONFIG_SOC_SERIES_STM32F1X)
-
-/*
- * STM32F1 Connectivity Line (F105/F107):
- *   MII/RMII selection is in the AFIO_MAPR register (bit AFIO_MAPR_MII_RMII_SEL).
- *   Setting the bit selects RMII; clearing it selects MII.
- */
-#if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
-#define STM32_CONFIGURE_ETH_PHY_MODE() do {                                                        \
-	__HAL_RCC_AFIO_CLK_ENABLE();                                                               \
-	CLEAR_BIT(AFIO->MAPR, AFIO_MAPR_MII_RMII_SEL);                                            \
-} while (0)
-#elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
-#define STM32_CONFIGURE_ETH_PHY_MODE() do {                                                        \
-	__HAL_RCC_AFIO_CLK_ENABLE();                                                               \
-	SET_BIT(AFIO->MAPR, AFIO_MAPR_MII_RMII_SEL);                                              \
-} while (0)
-#else
-#error "Unsupported PHY connection type"
-#endif
-
-#elif defined(CONFIG_SOC_SERIES_STM32F2X) || \
-      defined(CONFIG_SOC_SERIES_STM32F4X) || \
-      defined(CONFIG_SOC_SERIES_STM32F7X) || \
-      defined(CONFIG_SOC_SERIES_STM32MP13X)
-
-/*
- * STM32F2/F4/F7 and STM32MP13:
- *   MII/RMII selection is in the SYSCFG_PMC register via
- *   LL_SYSCFG_SetPHYInterface().
- *   Constants: LL_SYSCFG_ETH_MII / LL_SYSCFG_ETH_RMII
- */
-#if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
-#define PHY_MODE LL_SYSCFG_ETH_MII
-#elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
-#define PHY_MODE LL_SYSCFG_ETH_RMII
-#else
-#error "Unsupported PHY connection type"
-#endif
-#define STM32_CONFIGURE_ETH_PHY_MODE() do {                                                        \
-	__HAL_RCC_SYSCFG_CLK_ENABLE();                                                             \
-	LL_SYSCFG_SetPHYInterface(PHY_MODE);                                                       \
-} while (0)
-
-#elif defined(CONFIG_SOC_SERIES_STM32H5X)
+#if defined(CONFIG_SOC_SERIES_STM32H5X)
 
 /*
  * STM32H5:
@@ -125,10 +74,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 	LL_SBS_SetPHYInterface(PHY_MODE);                                                          \
 } while (0)
 
-#elif defined(CONFIG_SOC_SERIES_STM32H7X)
+#elif defined(CONFIG_SOC_SERIES_STM32H7X) || \
+      defined(CONFIG_SOC_SERIES_STM32MP13X)
 
 /*
- * STM32H7:
+ * STM32H7 and STM32MP13:
  *   MII/RMII selection is in the SYSCFG_PMCR register via
  *   LL_SYSCFG_SetPHYInterface().
  *   Constants: LL_SYSCFG_ETH_MII / LL_SYSCFG_ETH_RMII

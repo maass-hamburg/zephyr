@@ -26,11 +26,7 @@ config ETH_DWMAC
 config ETH_DWMAC_STM32
 	bool "Synopsys DesignWare MAC driver for STM32 series"
 	depends on !ETH_STM32_HAL
-	depends on SOC_SERIES_STM32F1X \
-		   || SOC_SERIES_STM32F2X \
-		   || SOC_SERIES_STM32F4X \
-		   || SOC_SERIES_STM32F7X \
-		   || SOC_SERIES_STM32H5X \
+	depends on SOC_SERIES_STM32H5X \
 		   || SOC_SERIES_STM32H7X \
 		   || SOC_SERIES_STM32H7RSX \
 		   || SOC_SERIES_STM32MP13X \
@@ -47,26 +43,22 @@ config ETH_DWMAC_STM32
 	  integrate a Synopsys DesignWare Ethernet MAC (DWMAC/DWC EthernetQoS).
 
 	  Supported STM32 series:
-	    - STM32F1X  (F107 Connectivity Line) - AFIO MII/RMII selection
-	    - STM32F2X  (F207/F217)              - SYSCFG PMC MII/RMII selection
-	    - STM32F4X  (F407/F417/F427/F429)    - SYSCFG PMC MII/RMII selection
-	    - STM32F7X  (F745/F756/F765/F777)    - SYSCFG PMC MII/RMII selection
-	    - STM32H5X  (H563/H573)              - SBS ETH MII/RMII selection
-	    - STM32H7X  (H743/H753/H735/H750)    - SYSCFG ETH MII/RMII selection
-	    - STM32H7RSX (H7S7/H7R7)             - SBS ETH PHYSEL selection
-	    - STM32MP13X (MP135)                 - SYSCFG ETH MII/RMII selection
-	    - STM32N6X  (N657)                   - SBS ETH MII/RMII selection
+	    - STM32H5X  (H563/H573)   - SBS ETH MII/RMII selection
+	    - STM32H7X  (H743/H753/H735/H750) - SYSCFG ETH MII/RMII selection
+	    - STM32H7RSX (H7S7/H7R7)  - SBS ETH PHYSEL selection
+	    - STM32MP13X (MP135)       - SYSCFG ETH MII/RMII selection
+	    - STM32N6X  (N657)         - SBS ETH MII/RMII selection
 
-	  Note: The core driver targets DWC EthernetQoS IP (v4.x/v5.x) as found
-	  in STM32H5/H7/H7RS/MP13/N6. STM32F1/F2/F4/F7 use an older Synopsys
-	  MAC variant and may require additional porting work in the core driver.
+	  Note: STM32F1/F2/F4/F7 integrate an older Synopsys MAC variant
+	  (pre-QoS IP) that requires additional porting work in the core
+	  eth_dwmac.c driver and are therefore not yet supported here.
 
-# Backward-compatibility alias for the previous symbol name
+# Backward-compatibility alias: ETH_DWMAC_STM32H7X was the previous name for
+# ETH_DWMAC_STM32.  Existing board configurations that set this symbol will
+# still work because selecting it also selects the new symbol.
 config ETH_DWMAC_STM32H7X
 	bool
 	select ETH_DWMAC_STM32
-	help
-	  Deprecated alias for ETH_DWMAC_STM32. Use ETH_DWMAC_STM32 instead.
 
 config ETH_DWMAC_MMU
 	bool "Synopsys DesignWare MAC driver for MMU based platforms"
