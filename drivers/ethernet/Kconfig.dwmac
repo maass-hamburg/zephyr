@@ -14,21 +14,27 @@ config ETH_DWMAC
 	  4.x and 5.x are supported.
 
 	  Platform specific glue support is also required. This driver is
-	  currently available on targets using the STM32H7X series as an
-	  alternative to the eth_stm32_hal driver. Support for a generic DT
-	  and MMU based platform is also provided.
+	  currently available on STM32 targets (as an alternative to the
+	  eth_stm32_hal driver). Support for a generic DT and MMU based
+	  platform is also provided.
 
 	  Not yet implemented:
 	  - PTP support
 	  - VLAN support
 	  - various hardware offloads (when available)
 
-config ETH_DWMAC_STM32H7X
+config ETH_DWMAC_STM32
 	bool "Synopsys DesignWare MAC driver for STM32 series"
 	depends on !ETH_STM32_HAL
-	depends on SOC_SERIES_STM32H5X \
+	depends on SOC_SERIES_STM32F1X \
+		   || SOC_SERIES_STM32F2X \
+		   || SOC_SERIES_STM32F4X \
+		   || SOC_SERIES_STM32F7X \
+		   || SOC_SERIES_STM32H5X \
 		   || SOC_SERIES_STM32H7X \
-		   || SOC_SERIES_STM32H7RSX
+		   || SOC_SERIES_STM32H7RSX \
+		   || SOC_SERIES_STM32MP13X \
+		   || SOC_SERIES_STM32N6X
 	depends on DT_HAS_ST_STM32_ETHERNET_ENABLED
 	select ETH_DWMAC
 	select NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
@@ -37,8 +43,30 @@ config ETH_DWMAC_STM32H7X
 	select CRC
 	default y
 	help
-	  This enables the Synopsys DesignWare MAC driver on STM32 H5/H7/H7RS
-	  series SoCs.
+	  This enables the Synopsys DesignWare MAC driver on STM32 SoCs that
+	  integrate a Synopsys DesignWare Ethernet MAC (DWMAC/DWC EthernetQoS).
+
+	  Supported STM32 series:
+	    - STM32F1X  (F107 Connectivity Line) - AFIO MII/RMII selection
+	    - STM32F2X  (F207/F217)              - SYSCFG PMC MII/RMII selection
+	    - STM32F4X  (F407/F417/F427/F429)    - SYSCFG PMC MII/RMII selection
+	    - STM32F7X  (F745/F756/F765/F777)    - SYSCFG PMC MII/RMII selection
+	    - STM32H5X  (H563/H573)              - SBS ETH MII/RMII selection
+	    - STM32H7X  (H743/H753/H735/H750)    - SYSCFG ETH MII/RMII selection
+	    - STM32H7RSX (H7S7/H7R7)             - SBS ETH PHYSEL selection
+	    - STM32MP13X (MP135)                 - SYSCFG ETH MII/RMII selection
+	    - STM32N6X  (N657)                   - SBS ETH MII/RMII selection
+
+	  Note: The core driver targets DWC EthernetQoS IP (v4.x/v5.x) as found
+	  in STM32H5/H7/H7RS/MP13/N6. STM32F1/F2/F4/F7 use an older Synopsys
+	  MAC variant and may require additional porting work in the core driver.
+
+# Backward-compatibility alias for the previous symbol name
+config ETH_DWMAC_STM32H7X
+	bool
+	select ETH_DWMAC_STM32
+	help
+	  Deprecated alias for ETH_DWMAC_STM32. Use ETH_DWMAC_STM32 instead.
 
 config ETH_DWMAC_MMU
 	bool "Synopsys DesignWare MAC driver for MMU based platforms"
