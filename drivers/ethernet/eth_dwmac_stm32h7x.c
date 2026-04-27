@@ -5,9 +5,19 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  *
- * STM32H7X specific glue.
+ * STM32 platform-specific glue for the Synopsys DesignWare Ethernet MAC
+ * (DWMAC / DWC EthernetQoS) driver.
+ *
+ * Supported STM32 SoC series (all integrate DWC EthernetQoS IP v4.x/v5.x):
+ *   - STM32H5X  (H563/H573)              - SBS ETH MII/RMII selection
+ *   - STM32H7X  (H743/H753/H735/H750)    - SYSCFG ETH MII/RMII selection
+ *   - STM32H7RSX (H7S7/H7R7)             - SBS ETH PHYSEL MII/RMII selection
+ *   - STM32MP13X (MP135)                 - SYSCFG ETH MII/RMII selection
+ *   - STM32N6X  (N657)                   - SBS ETH MII/RMII selection
+ *
+ * Not yet supported (older Synopsys MAC IP, requires core driver porting):
+ *   - STM32F1X, STM32F2X, STM32F4X, STM32F7X
  */
-
 
 #define LOG_MODULE_NAME dwmac_plat
 #define LOG_LEVEL CONFIG_ETHERNET_LOG_LEVEL
@@ -35,8 +45,23 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #define ST_OUI_B1 0x80
 #define ST_OUI_B2 0xE1
 
+/*
+ * Per-series PHY interface mode configuration.
+ *
+ * Each series provides a STM32_CONFIGURE_ETH_PHY_MODE() macro that:
+ *   1. Enables the clock to the system-configuration peripheral.
+ *   2. Writes the correct MII/RMII selector bit via the appropriate LL API.
+ *
+ * The phy-connection-type property in the device tree node selects the mode.
+ */
+
 #if defined(CONFIG_SOC_SERIES_STM32H5X)
 
+/*
+ * STM32H5:
+ *   MII/RMII selection is via the SBS block using LL_SBS_SetPHYInterface().
+ *   Constants: LL_SBS_ETH_MII / LL_SBS_ETH_RMII
+ */
 #if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
 #define PHY_MODE LL_SBS_ETH_MII
 #elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
@@ -49,8 +74,15 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 	LL_SBS_SetPHYInterface(PHY_MODE);                                                          \
 } while (0)
 
-#elif defined(CONFIG_SOC_SERIES_STM32H7X)
+#elif defined(CONFIG_SOC_SERIES_STM32H7X) || \
+      defined(CONFIG_SOC_SERIES_STM32MP13X)
 
+/*
+ * STM32H7 and STM32MP13:
+ *   MII/RMII selection is in the SYSCFG_PMCR register via
+ *   LL_SYSCFG_SetPHYInterface().
+ *   Constants: LL_SYSCFG_ETH_MII / LL_SYSCFG_ETH_RMII
+ */
 #if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
 #define PHY_MODE LL_SYSCFG_ETH_MII
 #elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
@@ -65,6 +97,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #elif defined(CONFIG_SOC_SERIES_STM32H7RSX)
 
+/*
+ * STM32H7RS:
+ *   PHY interface selection is via the SBS block using LL_SBS_SetEthernetPhy().
+ *   Constants: LL_SBS_ETH_PHYSEL_GMII_MII / LL_SBS_ETH_PHYSEL_RMII
+ */
 #if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
 #define PHY_MODE LL_SBS_ETH_PHYSEL_GMII_MII
 #elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
@@ -77,6 +114,28 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 	LL_SBS_SetEthernetPhy(PHY_MODE);                                                           \
 } while (0)
 
+#elif defined(CONFIG_SOC_SERIES_STM32N6X)
+
+/*
+ * STM32N6:
+ *   MII/RMII selection is via the SBS block using LL_SBS_SetPHYInterface(),
+ *   the same function and constants used by STM32H5.
+ *   Constants: LL_SBS_ETH_MII / LL_SBS_ETH_RMII
+ */
+#if DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, mii)
+#define PHY_MODE LL_SBS_ETH_MII
+#elif DT_INST_ENUM_HAS_VALUE(0, phy_connection_type, rmii)
+#define PHY_MODE LL_SBS_ETH_RMII
+#else
+#error "Unsupported PHY connection type"
+#endif
+#define STM32_CONFIGURE_ETH_PHY_MODE() do {                                                        \
+	__HAL_RCC_SBS_CLK_ENABLE();                                                                \
+	LL_SBS_SetPHYInterface(PHY_MODE);                                                          \
+} while (0)
+
+#else
+#error "Unsupported STM32 SoC series for DWMAC driver"
 #endif
 
 PINCTRL_DT_INST_DEFINE(0);
