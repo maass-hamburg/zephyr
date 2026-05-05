@@ -242,7 +242,12 @@ static int spi_litex_xfer(const struct device *dev, const struct spi_config *con
 	struct spi_context *ctx = &data->ctx;
 	uint32_t rxd;
 
-	litex_write32(BIT(config->slave), dev_config->master_cs_addr);
+	if (!IS_ENABLED(DT_SPI_CTX_HAS_NO_CS_GPIOS) && spi_cs_is_gpio(config)) {
+		litex_write32(BIT(0), dev_config->master_cs_addr);
+		spi_context_cs_control(ctx, true);
+	} else {
+		litex_write32(BIT(config->slave), dev_config->master_cs_addr);
+	}
 
 	/* Flush RX buffer */
 	while ((litex_read8(dev_config->master_status_addr) &
@@ -313,6 +318,10 @@ static int transceive(const struct device *dev,
 
 	ret = spi_litex_xfer(dev, config);
 
+	if (!asynchronous && !(config->operation & SPI_HOLD_ON_CS)) {
+		spi_context_cs_control(&data->ctx, false);
+	}
+
 end:
 	spi_context_release(&data->ctx, ret);
 
@@ -370,24 +379,32 @@ static void spi_litex_irq_handler(const struct device *dev)
 	const struct spi_litex_dev_config *dev_config = dev->config;
 	struct spi_context *ctx = &data->ctx;
 
-	if (litex_read8(dev_config->master_ev_pending_addr) & BIT(0)) {
-		spi_litex_spi_do_rx(dev);
-
-		/* ack reader irq */
-		litex_write8(BIT(0), dev_config->master_ev_pending_addr);
-
-		if (spi_context_tx_on(ctx) || spi_context_rx_on(ctx)) {
-			spi_litex_spi_do_tx(dev);
-		} else {
-			litex_write8(0, dev_config->master_ev_enable_addr);
-
-			if ((ctx->config->operation & SPI_HOLD_ON_CS) == 0) {
-				litex_write32(0, dev_config->master_cs_addr);
-			}
-
-			spi_context_complete(ctx, dev, 0);
-		}
+	if (!IS_BIT_SET(litex_read8(dev_config->master_ev_pending_addr), 0)) {
+		return;
 	}
+
+	spi_litex_spi_do_rx(dev);
+
+	/* ack reader irq */
+	litex_write8(BIT(0), dev_config->master_ev_pending_addr);
+
+	if (spi_context_tx_on(ctx) || spi_context_rx_on(ctx)) {
+		spi_litex_spi_do_tx(dev);
+		return;
+	}
+
+	litex_write8(0, dev_config->master_ev_enable_addr);
+
+	if ((ctx->config->operation & SPI_HOLD_ON_CS) == 0) {
+#ifdef CONFIG_SPI_ASYNC
+		if (ctx->asynchronous) {
+			spi_context_cs_control(ctx, false);
+		}
+#endif
+		litex_write32(0, dev_config->master_cs_addr);
+	}
+
+	spi_context_complete(ctx, dev, 0);
 }
 #endif /* SPI_LITEX_ANY_HAS_IRQ */
 
@@ -395,6 +412,12 @@ static int spi_litex_init(const struct device *dev)
 {
 	__maybe_unused const struct spi_litex_dev_config *dev_config = dev->config;
 	struct spi_litex_data *data = dev->data;
+	int ret;
+
+	ret = spi_context_cs_configure_all(&data->ctx);
+	if (ret < 0) {
+		return ret;
+	}
 
 #if SPI_LITEX_ANY_HAS_IRQ
 	if (SPI_LITEX_HAS_IRQ) {
@@ -445,6 +468,7 @@ static DEVICE_API(spi, spi_litex_api) = {
 	static struct spi_litex_data spi_litex_data_##n = {					   \
 		SPI_CONTEXT_INIT_LOCK(spi_litex_data_##n, ctx),					   \
 		SPI_CONTEXT_INIT_SYNC(spi_litex_data_##n, ctx),					   \
+		SPI_CONTEXT_CS_GPIOS_INITIALIZE(DT_DRV_INST(n), ctx)				   \
 	};											   \
 												   \
 	static struct spi_litex_dev_config spi_litex_cfg_##n = {                                   \
