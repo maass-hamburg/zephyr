@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright The Zephyr Project Contributors
+# SPDX-License-Identifier: Apache-2.0
+
+description: Analog Devices ADE7913 3-channel SPI ADC
+
+compatible: "ti,ade7913"
+
+include: [adc-controller.yaml, spi-device.yaml]
+
+on-bus: spi
+
+properties:
+  "#io-channel-cells":
+    const: 1
+
+io-channel-cells:
+  - input
