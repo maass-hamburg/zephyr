@@ -43,6 +43,7 @@ struct dwmac_dma_desc {
 /* our private instance structure */
 struct dwmac_config {
 	DEVICE_MMIO_ROM;
+	struct net_if *iface;
 	const struct device *phy_dev;
 	const struct device *clock;
 	const clock_control_subsys_t mac_clk;
@@ -50,7 +51,6 @@ struct dwmac_config {
 
 struct dwmac_priv {
 	DEVICE_MMIO_RAM;
-	struct net_if *iface;
 
 	uint8_t mac_addr[6];
 

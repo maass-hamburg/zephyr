@@ -194,8 +194,10 @@ abort:
 	return -ENOMEM;
 }
 
-static void dwmac_tx_release(struct dwmac_priv *p)
+static void dwmac_tx_release(const struct device *dev)
 {
+	struct dwmac_priv *p = dev->data;
+	__maybe_unused const struct dwmac_config *cfg = dev->config;
 	unsigned int d_idx;
 	struct dwmac_dma_desc *d;
 	struct net_buf *frag;
@@ -228,15 +230,17 @@ static void dwmac_tx_release(struct dwmac_priv *p)
 			/* log any errors */
 			if (des3_val & TDES3_ES) {
 				LOG_ERR("tx error (DES3 = 0x%08x)", des3_val);
-				eth_stats_update_errors_tx(p->iface);
+				eth_stats_update_errors_tx(cfg->iface);
 			}
 		}
 	}
 	p->tx_desc_tail = d_idx;
 }
 
-static void dwmac_receive(struct dwmac_priv *p)
+static void dwmac_receive(const struct device *dev)
 {
+	struct dwmac_priv *p = dev->data;
+	const struct dwmac_config *cfg = dev->config;
 	struct dwmac_dma_desc *d;
 	struct net_buf *frag;
 	unsigned int d_idx, bytes_so_far;
@@ -269,13 +273,13 @@ static void dwmac_receive(struct dwmac_priv *p)
 			p->rx_bytes = 0;
 			if (p->rx_pkt) {
 				LOG_ERR("d[%d] first desc but pkt exists", d_idx);
-				eth_stats_update_errors_rx(p->iface);
+				eth_stats_update_errors_rx(cfg->iface);
 				net_pkt_unref(p->rx_pkt);
 			}
-			p->rx_pkt = net_pkt_rx_alloc_on_iface(p->iface, K_NO_WAIT);
+			p->rx_pkt = net_pkt_rx_alloc_on_iface(cfg->iface, K_NO_WAIT);
 			if (!p->rx_pkt) {
 				LOG_ERR("net_pkt_rx_alloc_on_iface() failed");
-				eth_stats_update_errors_rx(p->iface);
+				eth_stats_update_errors_rx(cfg->iface);
 			}
 		}
 
@@ -299,10 +303,10 @@ static void dwmac_receive(struct dwmac_priv *p)
 				LOG_DBG("pkt len/frags=%zd/%d",
 					net_pkt_get_len(p->rx_pkt),
 					net_pkt_get_nbfrags(p->rx_pkt));
-				net_recv_data(p->iface, p->rx_pkt);
+				net_recv_data(cfg->iface, p->rx_pkt);
 			} else {
 				LOG_ERR("rx error (DES3 = 0x%08x)", des3_val);
-				eth_stats_update_errors_rx(p->iface);
+				eth_stats_update_errors_rx(cfg->iface);
 				net_pkt_unref(p->rx_pkt);
 			}
 			p->rx_pkt = NULL;
@@ -378,7 +382,6 @@ static void dwmac_rx_refill_thread(void *arg1, void *unused1, void *unused2)
 
 static void dwmac_dma_irq(const struct device *dev, unsigned int ch)
 {
-	struct dwmac_priv *p = dev->data;
 	uint32_t status;
 
 	status = REG_READ(DMA_CHn_STATUS(ch));
@@ -392,11 +395,11 @@ static void dwmac_dma_irq(const struct device *dev, unsigned int ch)
 	}
 
 	if (status & DMA_CHn_STATUS_TI) {
-		dwmac_tx_release(p);
+		dwmac_tx_release(dev);
 	}
 
 	if (status & DMA_CHn_STATUS_RI) {
-		dwmac_receive(p);
+		dwmac_receive(dev);
 	}
 }
 
@@ -497,7 +500,7 @@ static void phy_link_state_changed(const struct device *phy_dev,
 {
 	uint32_t reg_val;
 	const struct device *dev = (const struct device *)user_data;
-	struct dwmac_priv *p = dev->data;
+	const struct dwmac_config *cfg = dev->config;
 
 	ARG_UNUSED(phy_dev);
 
@@ -536,9 +539,9 @@ static void phy_link_state_changed(const struct device *phy_dev,
 
 		REG_WRITE(MAC_CONF, reg_val);
 
-		net_eth_carrier_on(p->iface);
+		net_eth_carrier_on(cfg->iface);
 	} else {
-		net_eth_carrier_off(p->iface);
+		net_eth_carrier_off(cfg->iface);
 	}
 }
 
@@ -555,9 +558,6 @@ static void dwmac_iface_init(struct net_if *iface)
 	struct dwmac_priv *p = dev->data;
 	const struct dwmac_config *cfg = dev->config;
 	uint32_t reg_val;
-
-	__ASSERT(!p->iface, "interface already initialized?");
-	p->iface = iface;
 
 	ethernet_init(iface);
 
