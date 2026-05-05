@@ -65,7 +65,7 @@ struct dwmac_priv {
 	unsigned int rx_desc_head, rx_desc_tail;
 
 #ifdef CONFIG_MMU
-	uintptr_t tx_descs_phys, rx_descs_phys;
+	struct dwmac_dma_desc *tx_descs_phys, *rx_descs_phys;
 #endif
 
 	struct net_buf *tx_frags[NB_TX_DESCS]; /* index shared with tx_descs */

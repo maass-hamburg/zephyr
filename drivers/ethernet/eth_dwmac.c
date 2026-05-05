@@ -57,44 +57,32 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
  * different from the normal RAM virt_to_phys mapping.
  */
 #ifdef CONFIG_MMU
-#define TXDESC_PHYS_H(idx) hi32(p->tx_descs_phys + (idx) * sizeof(struct dwmac_dma_desc))
-#define TXDESC_PHYS_L(idx) lo32(p->tx_descs_phys + (idx) * sizeof(struct dwmac_dma_desc))
-#define RXDESC_PHYS_H(idx) hi32(p->rx_descs_phys + (idx) * sizeof(struct dwmac_dma_desc))
-#define RXDESC_PHYS_L(idx) lo32(p->rx_descs_phys + (idx) * sizeof(struct dwmac_dma_desc))
+#define TXDESC_PHYS_H(idx) hi32(&p->tx_descs_phys[idx])
+#define TXDESC_PHYS_L(idx) lo32(&p->tx_descs_phys[idx])
+#define RXDESC_PHYS_H(idx) hi32(&p->rx_descs_phys[idx])
+#define RXDESC_PHYS_L(idx) lo32(&p->rx_descs_phys[idx])
 #else
-#define TXDESC_PHYS_H(idx) phys_hi32(&p->tx_descs[idx])
-#define TXDESC_PHYS_L(idx) phys_lo32(&p->tx_descs[idx])
-#define RXDESC_PHYS_H(idx) phys_hi32(&p->rx_descs[idx])
-#define RXDESC_PHYS_L(idx) phys_lo32(&p->rx_descs[idx])
+#define TXDESC_PHYS_H(idx) hi32(&p->tx_descs[idx])
+#define TXDESC_PHYS_L(idx) lo32(&p->tx_descs[idx])
+#define RXDESC_PHYS_H(idx) hi32(&p->rx_descs[idx])
+#define RXDESC_PHYS_L(idx) lo32(&p->rx_descs[idx])
 #endif
 
-static inline uint32_t hi32(uintptr_t val)
+static inline uint32_t hi32(void *addr)
 {
 	/* trickery to avoid compiler warnings on 32-bit build targets */
-	if (sizeof(uintptr_t) > 4) {
-		uint64_t hi = val;
+	if (sizeof(void *) > 4) {
+		uint64_t hi = POINTER_TO_UINT(addr);
 
 		return hi >> 32;
 	}
 	return 0;
 }
 
-static inline uint32_t lo32(uintptr_t val)
+static inline uint32_t lo32(void *addr)
 {
 	/* just a typecast return to be symmetric with hi32() */
-	return val;
-}
-
-static inline uint32_t phys_hi32(void *addr)
-{
-	/* the default 1:1 mapping is assumed */
-	return hi32((uintptr_t)addr);
-}
-
-static inline uint32_t phys_lo32(void *addr)
-{
-	/* the default 1:1 mapping is assumed */
-	return lo32((uintptr_t)addr);
+	return (uint32_t)POINTER_TO_UINT(addr);
 }
 
 static enum ethernet_hw_caps dwmac_caps(const struct device *dev, struct net_if *iface __unused)
@@ -172,8 +160,8 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 
 		/* fill the descriptor */
 		d = &p->tx_descs[d_idx];
-		d->des0 = phys_lo32(frag->data);
-		d->des1 = phys_hi32(frag->data);
+		d->des0 = lo32(frag->data);
+		d->des1 = lo32(frag->data);
 		d->des2 = frag->len | des2_flags;
 		d->des3 = pkt_len | des3_flags;
 
@@ -372,8 +360,8 @@ static void dwmac_rx_refill_thread(void *arg1, void *unused1, void *unused2)
 		}
 
 		/* all is good: initialize the descriptor */
-		d->des0 = phys_lo32(frag->data);
-		d->des1 = phys_hi32(frag->data);
+		d->des0 = lo32(frag->data);
+		d->des1 = hi32(frag->data);
 		d->des2 = 0;
 		d->des3 = RDES3_BUF1V | RDES3_IOC | RDES3_OWN;
 
