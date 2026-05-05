@@ -180,12 +180,7 @@ int dwmac_platform_init(const struct device *dev)
 }
 
 /* Our private device instance */
-static const struct dwmac_config dwmac_config = {
-	DEVICE_MMIO_ROM_INIT(DT_DRV_INST(0)),
-	.phy_dev = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(0, phy_handle)),
-	.clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
-	.mac_clk = (clock_control_subsys_t)&pclken[0],
-};
+static const struct dwmac_config dwmac_config;
 
 static struct dwmac_priv dwmac_instance;
 
@@ -197,3 +192,11 @@ ETH_NET_DEVICE_DT_INST_DEFINE(0,
 			      CONFIG_ETH_INIT_PRIORITY,
 			      &dwmac_api,
 			      NET_ETH_MTU);
+
+static const struct dwmac_config dwmac_config = {
+	DEVICE_MMIO_ROM_INIT(DT_DRV_INST(0)),
+	.iface = NET_IF_DT_INST_GET(0, 0),
+	.phy_dev = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(0, phy_handle)),
+	.clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),
+	.mac_clk = (clock_control_subsys_t)&pclken[0],
+};
