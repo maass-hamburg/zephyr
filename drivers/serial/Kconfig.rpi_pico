@@ -9,4 +9,5 @@ config UART_RPI_PICO_PIO
 	select PICOSDK_USE_PIO
 	select PICOSDK_USE_CLAIM
 	select PINCTRL
+	select EARLY_CONSOLE_NOT_SUPPORTED
 	depends on RESET

@@ -161,9 +161,15 @@ config PRINTK_BUFFER_SIZE
 	  not have to make a system call for every character emitted. Specify
 	  the size of this buffer.
 
+config EARLY_CONSOLE_NOT_SUPPORTED
+	bool "Early console not supported"
+	help
+	  This option should be selected if the platform does not support an early console.
+
 config EARLY_CONSOLE
 	bool "Send stdout at the earliest stage possible"
 	default y
+	depends on !EARLY_CONSOLE_NOT_SUPPORTED
 	help
 	  This option will enable stdout as early as possible, for debugging
 	  purpose. For instance, in case of STDOUT_CONSOLE being set it will

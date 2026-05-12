@@ -5,6 +5,7 @@ config UART_RPMSG
 	bool "Use RPMSG uart"
 	depends on RPMSG_SERVICE
 	depends on DT_HAS_RPMSG_UART_ENABLED
+	select EARLY_CONSOLE_NOT_SUPPORTED
 	help
 	  Enable uart using RPMSG.
 
