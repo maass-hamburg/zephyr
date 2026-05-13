@@ -94,6 +94,7 @@ struct test_ctx {
 	size_t buflen;
 	size_t offset;
 	uint16_t status;
+	enum http_content_encoding content_encoding;
 	bool abort;
 	bool final;
 };
@@ -118,6 +119,7 @@ static int response_cb(struct http_response *rsp,
 	if (final_data == HTTP_DATA_FINAL) {
 		ctx->final = true;
 		ctx->status = rsp->http_status_code;
+		ctx->content_encoding = rsp->content_encoding;
 	}
 
 	/* Copy response body */
@@ -456,11 +458,25 @@ ZTEST_SUITE(http_client, NULL, NULL, client_tests_before, client_tests_after, NU
 
 static const char chunked_te_response[] =
 	"HTTP/1.1 206 Partial Content\r\n"
+	"Content-Encoding: gzip\r\n"
 	"Content-Range: bytes 0-15/16\r\n"
 	"Transfer-Encoding: chunked\r\n"
 	"\r\n"
-	"10\r\n"
-	"AAAAAAAAAAAAAAAA"
+	"17\r\n"
+	"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\x03\x73\x74\x44\x05\x00"
+	"\x0b\x57\x04\xbb\x10\x00\x00\x00"
+	"\r\n"
+	"0\r\n"
+	"\r\n";
+
+static const char chunked_te_deflate_response[] =
+	"HTTP/1.1 206 Partial Content\r\n"
+	"Content-Encoding: deflate\r\n"
+	"Content-Range: bytes 0-15/16\r\n"
+	"Transfer-Encoding: chunked\r\n"
+	"\r\n"
+	"b\r\n"
+	"\x78\x9c\x73\x74\x44\x05\x00\x22\x98\x04\x11"
 	"\r\n"
 	"0\r\n"
 	"\r\n";
@@ -468,6 +484,8 @@ static const char chunked_te_response[] =
 static K_THREAD_STACK_DEFINE(chunked_srv_stack, 1024);
 static struct k_thread chunked_srv_thread;
 static K_SEM_DEFINE(chunked_srv_ready, 0, 1);
+static bool chunked_accept_encoding_seen;
+static bool chunked_accept_encoding_deflate_seen;
 
 static void chunked_srv_fn(void *p1, void *p2, void *p3)
 {
@@ -503,9 +521,22 @@ static void chunked_srv_fn(void *p1, void *p2, void *p3)
 
 	conn = zsock_accept(srv, NULL, NULL);
 	if (conn >= 0) {
-		(void)zsock_recv(conn, req_buf, sizeof(req_buf) - 1, 0);
-		(void)zsock_send(conn, chunked_te_response,
-				 sizeof(chunked_te_response) - 1, 0);
+		ret = zsock_recv(conn, req_buf, sizeof(req_buf) - 1, 0);
+		if (ret > 0) {
+			req_buf[ret] = '\0';
+			chunked_accept_encoding_seen =
+				strstr(req_buf, "Accept-Encoding: gzip\r\n") != NULL;
+			chunked_accept_encoding_deflate_seen =
+				strstr(req_buf, "Accept-Encoding: deflate\r\n") != NULL;
+		}
+
+		if (strstr(req_buf, "GET /firmware/deflate.bin ") != NULL) {
+			(void)zsock_send(conn, chunked_te_deflate_response,
+					 sizeof(chunked_te_deflate_response) - 1, 0);
+		} else {
+			(void)zsock_send(conn, chunked_te_response,
+					 sizeof(chunked_te_response) - 1, 0);
+		}
 		zsock_close(conn);
 	}
 
@@ -515,6 +546,7 @@ static void chunked_srv_fn(void *p1, void *p2, void *p3)
 static int chunked_client_fd = -1;
 static uint8_t chunked_recv_buf[256];
 static uint8_t chunked_response_buf[256];
+static uint8_t chunked_decompress_buf[128];
 
 static void chunked_tests_before(void *fixture)
 {
@@ -525,6 +557,8 @@ static void chunked_tests_before(void *fixture)
 
 	memset(chunked_recv_buf, 0, sizeof(chunked_recv_buf));
 	memset(chunked_response_buf, 0, sizeof(chunked_response_buf));
+	chunked_accept_encoding_seen = false;
+	chunked_accept_encoding_deflate_seen = false;
 
 	k_thread_create(&chunked_srv_thread, chunked_srv_stack,
 			K_THREAD_STACK_SIZEOF(chunked_srv_stack),
@@ -571,6 +605,9 @@ ZTEST(http_client_chunked_te, test_body_frag_len_chunked_te)
 	req.response = response_cb;
 	req.recv_buf = chunked_recv_buf;
 	req.recv_buf_len = sizeof(chunked_recv_buf);
+	req.accept_encoding_gzip = true;
+	req.decompress_buf = chunked_decompress_buf;
+	req.decompress_buf_len = sizeof(chunked_decompress_buf);
 
 	ctx.buf = chunked_response_buf;
 	ctx.buflen = sizeof(chunked_response_buf);
@@ -579,6 +616,46 @@ ZTEST(http_client_chunked_te, test_body_frag_len_chunked_te)
 	zassert_true(ret > 0, "http_client_req() failed (%d)", ret);
 	zassert_true(ctx.final, "No final event received");
 	zassert_equal(ctx.status, 206, "Unexpected HTTP status code");
+	zassert_true(chunked_accept_encoding_seen,
+		     "Missing Accept-Encoding request header");
+	zassert_equal(ctx.content_encoding, HTTP_CONTENT_ENCODING_GZIP,
+		      "Unexpected Content-Encoding value");
+
+	zassert_equal(ctx.offset, CHUNKED_BODY_SIZE,
+		      "body_frag_len overcount: got %zu, expected %d",
+		      ctx.offset, CHUNKED_BODY_SIZE);
+	zassert_mem_equal(chunked_response_buf, "AAAAAAAAAAAAAAAA",
+			  CHUNKED_BODY_SIZE, "Body content mismatch");
+}
+
+ZTEST(http_client_chunked_te, test_body_frag_len_chunked_te_deflate)
+{
+	struct http_request req = { 0 };
+	struct test_ctx ctx = { 0 };
+	int ret;
+
+	req.method = HTTP_GET;
+	req.url = "/firmware/deflate.bin";
+	req.host = SERVER_IPV6_ADDR;
+	req.protocol = "HTTP/1.1";
+	req.response = response_cb;
+	req.recv_buf = chunked_recv_buf;
+	req.recv_buf_len = sizeof(chunked_recv_buf);
+	req.accept_encoding_deflate = true;
+	req.decompress_buf = chunked_decompress_buf;
+	req.decompress_buf_len = sizeof(chunked_decompress_buf);
+
+	ctx.buf = chunked_response_buf;
+	ctx.buflen = sizeof(chunked_response_buf);
+
+	ret = http_client_req(chunked_client_fd, &req, -1, &ctx);
+	zassert_true(ret > 0, "http_client_req() failed (%d)", ret);
+	zassert_true(ctx.final, "No final event received");
+	zassert_equal(ctx.status, 206, "Unexpected HTTP status code");
+	zassert_true(chunked_accept_encoding_deflate_seen,
+		     "Missing Accept-Encoding request header for deflate");
+	zassert_equal(ctx.content_encoding, HTTP_CONTENT_ENCODING_DEFLATE,
+		      "Unexpected Content-Encoding value");
 
 	zassert_equal(ctx.offset, CHUNKED_BODY_SIZE,
 		      "body_frag_len overcount: got %zu, expected %d",

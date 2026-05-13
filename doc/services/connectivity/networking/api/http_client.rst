@@ -52,6 +52,26 @@ to process these.
 Together with the structure containing the response data, the callback function
 also provides information about whether the library expects to receive more data.
 
+To request compressed content from the server, set
+``req.accept_encoding_gzip = true`` and/or
+``req.accept_encoding_deflate = true``. The client then adds
+``Accept-Encoding`` automatically unless this header is already provided
+in request headers.
+
+When a ``Content-Encoding`` response header is present, the parsed value is
+available in ``rsp->content_encoding``.
+
+Chunked delivery does not prevent processing compressed content. HTTP client
+callbacks can receive partial body fragments.
+
+If :kconfig:option:`CONFIG_HTTP_CLIENT_DECOMPRESSION` is enabled and
+``req.decompress_response = true``, gzip- and deflate-compressed body fragments are
+decompressed transparently before being passed to the response callback.
+
+When decompression is enabled, the request must provide working buffers via
+``req.decompress_buf`` / ``req.decompress_buf_len`` and
+``req.decompress_workspace`` / ``req.decompress_workspace_len``.
+
 The following is an example of a very simple response handling function:
 
 .. code-block:: c

@@ -29,6 +29,62 @@ config HTTP_CLIENT
 	help
 	  HTTP client API
 
+config HTTP_CLIENT_DECOMPRESSION
+	bool "HTTP client response decompression"
+	depends on HTTP_CLIENT
+	select ZLIB_INFLATE
+	help
+	  Enable transparent response decompression in the HTTP client.
+	  Currently gzip and deflate content-encoding are supported.
+
+config HTTP_CLIENT_DECOMPRESSION_GZIP
+	bool "Gzip response decompression"
+	depends on HTTP_CLIENT_DECOMPRESSION
+	default y
+	help
+	  Enable transparent decompression for responses with
+	  Content-Encoding: gzip.
+
+config HTTP_CLIENT_DECOMPRESSION_DEFLATE
+	bool "Deflate response decompression"
+	depends on HTTP_CLIENT_DECOMPRESSION
+	default y
+	help
+	  Enable transparent decompression for responses with
+	  Content-Encoding: deflate.
+
+choice HTTP_CLIENT_DECOMPRESSION_ALLOC
+	prompt "Decompression workspace allocator"
+	depends on HTTP_CLIENT_DECOMPRESSION
+	default HTTP_CLIENT_DECOMPRESSION_ALLOC_HEAP
+	help
+	  Selects how memory is allocated for the zlib decompressor's
+	  internal state during HTTP response decompression.
+
+config HTTP_CLIENT_DECOMPRESSION_ALLOC_HEAP
+	bool "System heap (k_malloc / k_free)"
+	help
+	  Use the system heap (k_malloc / k_free) for the decompressor
+	  internal state.  Requires HEAP_MEM_POOL_SIZE > 0.
+
+config HTTP_CLIENT_DECOMPRESSION_ALLOC_DEDICATED_HEAP
+	bool "Dedicated decompression heap"
+	help
+	  Use a dedicated k_heap for the decompressor internal state.
+	  The heap size is controlled by
+	  HTTP_CLIENT_DECOMPRESSION_HEAP_SIZE.
+
+endchoice
+
+config HTTP_CLIENT_DECOMPRESSION_HEAP_SIZE
+	int "Dedicated decompression heap size (bytes)"
+	depends on HTTP_CLIENT_DECOMPRESSION_ALLOC_DEDICATED_HEAP
+	default 65536
+	help
+	  Size in bytes of the dedicated heap used to satisfy zlib
+	  allocations during HTTP response decompression.  A typical
+	  inflate stream requires approximately 32–40 KiB.
+
 config HTTP_CLIENT_SEND_BUF_SIZE
 	int "HTTP client request send buffer size"
 	depends on HTTP_CLIENT

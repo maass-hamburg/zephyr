@@ -51,6 +51,17 @@ enum http_final_call {
 struct http_request;
 struct http_response;
 
+/** HTTP response content-encoding value. */
+enum http_content_encoding {
+	HTTP_CONTENT_ENCODING_NONE = 0,
+	HTTP_CONTENT_ENCODING_GZIP,
+	HTTP_CONTENT_ENCODING_COMPRESS,
+	HTTP_CONTENT_ENCODING_DEFLATE,
+	HTTP_CONTENT_ENCODING_BR,
+	HTTP_CONTENT_ENCODING_ZSTD,
+	HTTP_CONTENT_ENCODING_UNKNOWN,
+};
+
 /**
  * @typedef http_payload_cb_t
  * @brief Callback used when data needs to be sent to the server.
@@ -206,10 +217,14 @@ struct http_response {
 	 */
 	struct http_content_range content_range;
 
+	/** Parsed value from the Content-Encoding response header. */
+	enum http_content_encoding content_encoding;
+
 	uint8_t cl_present : 1;       /**< Is Content-Length field present */
 	uint8_t body_found : 1;       /**< Is message body found */
 	uint8_t message_complete : 1; /**< Is HTTP message parsing complete */
 	uint8_t cr_present : 1;       /**< Is Content-Range field present */
+	uint8_t ce_present : 1;       /**< Is Content-Encoding field present */
 };
 
 /** HTTP client internal data that the application should not touch
@@ -327,6 +342,25 @@ struct http_request {
 	 * headers will be placed into this field.
 	 */
 	const char **optional_headers;
+
+	/** Add `Accept-Encoding: gzip` request header when set.
+	 */
+	bool accept_encoding_gzip;
+
+	/** Add `Accept-Encoding: deflate` request header when set.
+	 */
+	bool accept_encoding_deflate;
+
+	/** Output buffer used for decompressed body fragments.
+	 *
+	 * Set to a non-NULL buffer to enable transparent decompression.
+	 * When set and a supported ``Content-Encoding`` is received, the
+	 * response callback receives decompressed body fragments.
+	 */
+	uint8_t *decompress_buf;
+
+	/** Length of ``decompress_buf``. */
+	size_t decompress_buf_len;
 };
 
 /**

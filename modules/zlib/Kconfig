@@ -1,0 +1,14 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: Apache-2.0
+
+config ZEPHYR_ZLIB_MODULE
+	bool
+	default y
+
+config ZLIB_INFLATE
+	bool "zlib inflate support"
+	depends on ZEPHYR_TRUSTED_FIRMWARE_A_MODULE
+	help
+	  Build a lightweight zlib inflate implementation that can be used by
+	  networking libraries for streaming decompression (for example HTTP
+	  Content-Encoding: gzip).

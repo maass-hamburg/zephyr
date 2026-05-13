@@ -26,7 +26,13 @@ LOG_MODULE_REGISTER(net_http_client, CONFIG_NET_HTTP_LOG_LEVEL);
 #include <zephyr/net/http/client.h>
 #include <zephyr/net/http/status.h>
 
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+#include <zlib.h>
+#endif
+
 #include "net_private.h"
+#include "headers/server_internal.h"
 
 #define HTTP_CONTENT_LEN_SIZE 11
 #define MAX_SEND_BUF_LEN CONFIG_HTTP_CLIENT_SEND_BUF_SIZE
@@ -221,15 +227,20 @@ static int on_header_field(struct http_parser *parser, const char *at,
 						internal.parser);
 	static const char content_len[] = "Content-Length";
 	static const char content_range[] = "Content-Range";
+	static const char content_encoding[] = "Content-Encoding";
 
 	uint16_t content_len_len = sizeof(content_len) - 1;
 	uint16_t content_range_len = sizeof(content_range) - 1;
+	uint16_t content_encoding_len = sizeof(content_encoding) - 1;
 
 	if (length >= content_len_len && strncasecmp(at, content_len, content_len_len) == 0) {
 		req->internal.response.cl_present = true;
 	} else if (length >= content_range_len &&
 		   strncasecmp(at, content_range, content_range_len) == 0) {
 		req->internal.response.cr_present = true;
+	} else if (length >= content_encoding_len &&
+		   strncasecmp(at, content_encoding, content_encoding_len) == 0) {
+		req->internal.response.ce_present = true;
 	}
 
 	print_header_field(length, at);
@@ -244,6 +255,68 @@ static int on_header_field(struct http_parser *parser, const char *at,
 }
 
 #define MAX_NUM_DIGITS	16
+
+static enum http_content_encoding map_http_compression_to_content_encoding(
+		enum http_compression compression)
+{
+	switch (compression) {
+	case HTTP_GZIP:
+		return HTTP_CONTENT_ENCODING_GZIP;
+	case HTTP_COMPRESS:
+		return HTTP_CONTENT_ENCODING_COMPRESS;
+	case HTTP_DEFLATE:
+		return HTTP_CONTENT_ENCODING_DEFLATE;
+	case HTTP_BR:
+		return HTTP_CONTENT_ENCODING_BR;
+	case HTTP_ZSTD:
+		return HTTP_CONTENT_ENCODING_ZSTD;
+	case HTTP_NONE:
+		return HTTP_CONTENT_ENCODING_NONE;
+	default:
+		return HTTP_CONTENT_ENCODING_UNKNOWN;
+	}
+}
+
+static enum http_content_encoding parse_content_encoding(const char *at, size_t length)
+{
+	char token[HTTP_COMPRESSION_MAX_STRING_LEN + 1];
+	size_t token_len = 0;
+	enum http_compression compression;
+
+	while (token_len < length && (at[token_len] == ' ' || at[token_len] == '\t')) {
+		token_len++;
+	}
+
+	at += token_len;
+	length -= token_len;
+	token_len = 0;
+
+	while (token_len < length && token_len < HTTP_COMPRESSION_MAX_STRING_LEN) {
+		char c = at[token_len];
+
+		if (c == ';' || c == ',' || c == ' ' || c == '\t') {
+			break;
+		}
+
+		token[token_len++] = c;
+	}
+
+	if (token_len == 0U || token_len > HTTP_COMPRESSION_MAX_STRING_LEN) {
+		return HTTP_CONTENT_ENCODING_UNKNOWN;
+	}
+
+	token[token_len] = '\0';
+
+	if (http_compression_from_text(&compression, token) == 0) {
+		return map_http_compression_to_content_encoding(compression);
+	}
+
+	if (strcasecmp(token, "identity") == 0) {
+		return HTTP_CONTENT_ENCODING_NONE;
+	}
+
+	return HTTP_CONTENT_ENCODING_UNKNOWN;
+}
 
 static int on_header_value(struct http_parser *parser, const char *at,
 			   size_t length)
@@ -276,6 +349,12 @@ static int on_header_value(struct http_parser *parser, const char *at,
 		req->internal.response.content_range.end = parser->content_range.end;
 		req->internal.response.content_range.total = parser->content_range.total;
 		req->internal.response.cr_present = false;
+	}
+
+	if (req->internal.response.ce_present) {
+		req->internal.response.content_encoding =
+			parse_content_encoding(at, length);
+		req->internal.response.ce_present = false;
 	}
 
 	if (req->internal.response.http_cb &&
@@ -476,6 +555,219 @@ static int http_report_progress(struct http_request *req)
 	return 0;
 }
 
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_ALLOC_DEDICATED_HEAP)
+K_HEAP_DEFINE(http_decompress_heap, CONFIG_HTTP_CLIENT_DECOMPRESSION_HEAP_SIZE);
+#endif
+
+struct http_gzip_ctx {
+	z_stream stream;
+	uint8_t *out_buf;
+	size_t out_buf_len;
+	bool initialized;
+	bool stream_ended;
+	int window_bits;
+};
+
+static int http_get_decompression_window_bits(enum http_content_encoding encoding)
+{
+	switch (encoding) {
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP)
+	case HTTP_CONTENT_ENCODING_GZIP:
+		return 16 + MAX_WBITS;
+#endif
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+	case HTTP_CONTENT_ENCODING_DEFLATE:
+		return MAX_WBITS;
+#endif
+	default:
+		return 0;
+	}
+}
+
+static voidpf http_gzip_zalloc(voidpf opaque, uInt items, uInt size)
+{
+	size_t bytes = (size_t)items * (size_t)size;
+
+	if (items != 0 && bytes / items != size) {
+		return Z_NULL;
+	}
+
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_ALLOC_HEAP)
+	{
+		void *ptr;
+
+		ARG_UNUSED(opaque);
+		ptr = k_malloc(bytes);
+		if (ptr != NULL) {
+			memset(ptr, 0, bytes);
+		}
+		return ptr;
+	}
+#elif defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_ALLOC_DEDICATED_HEAP)
+	{
+		void *ptr;
+
+		ARG_UNUSED(opaque);
+		ptr = k_heap_alloc(&http_decompress_heap, bytes, K_NO_WAIT);
+		if (ptr != NULL) {
+			memset(ptr, 0, bytes);
+		}
+		return ptr;
+	}
+#endif
+}
+
+static void http_gzip_zfree(voidpf opaque, voidpf ptr)
+{
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_ALLOC_HEAP)
+	ARG_UNUSED(opaque);
+	k_free(ptr);
+#elif defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_ALLOC_DEDICATED_HEAP)
+	ARG_UNUSED(opaque);
+	k_heap_free(&http_decompress_heap, ptr);
+#endif
+}
+
+static int http_gzip_init(struct http_gzip_ctx *ctx)
+{
+	int zret;
+
+	if (ctx->initialized) {
+		return 0;
+	}
+
+	memset(&ctx->stream, 0, sizeof(ctx->stream));
+	ctx->stream.zalloc = http_gzip_zalloc;
+	ctx->stream.zfree = http_gzip_zfree;
+	ctx->stream.opaque = ctx;
+
+	zret = inflateInit2(&ctx->stream, ctx->window_bits);
+	if (zret != Z_OK) {
+		NET_DBG("inflateInit2() failed (%d)", zret);
+		return -ENOMEM;
+	}
+
+	ctx->initialized = true;
+
+	return 0;
+}
+
+static void http_gzip_deinit(struct http_gzip_ctx *ctx)
+{
+	if (ctx->initialized) {
+		(void)inflateEnd(&ctx->stream);
+		ctx->initialized = false;
+	}
+}
+
+static int http_report_decompressed(struct http_request *req,
+					    struct http_gzip_ctx *gzip,
+					    enum http_final_call final_data)
+{
+	uint8_t *input = req->internal.response.body_frag_start;
+	size_t input_len = req->internal.response.body_frag_len;
+	bool final = (final_data == HTTP_DATA_FINAL);
+	int cb_ret = 0;
+
+	if (input_len == 0U) {
+		if (final && req->internal.response.cb) {
+			return req->internal.response.cb(&req->internal.response,
+							 HTTP_DATA_FINAL,
+							 req->internal.user_data);
+		}
+
+		return 0;
+	}
+
+	cb_ret = http_gzip_init(gzip);
+	if (cb_ret < 0) {
+		return cb_ret;
+	}
+
+	gzip->stream.next_in = input;
+	gzip->stream.avail_in = input_len;
+
+	while (gzip->stream.avail_in > 0U || (final && !gzip->stream_ended)) {
+		uInt avail_out_before;
+		uInt avail_in_before;
+		size_t produced;
+		int zret;
+
+		gzip->stream.next_out = gzip->out_buf;
+		gzip->stream.avail_out = gzip->out_buf_len;
+		avail_out_before = gzip->stream.avail_out;
+		avail_in_before = gzip->stream.avail_in;
+
+		zret = inflate(&gzip->stream, final ? Z_FINISH : Z_NO_FLUSH);
+		produced = avail_out_before - gzip->stream.avail_out;
+
+		if (zret == Z_STREAM_END) {
+			gzip->stream_ended = true;
+		} else if (zret != Z_OK && zret != Z_BUF_ERROR) {
+			NET_DBG("inflate() failed (%d)", zret);
+			return -EBADMSG;
+		}
+
+		if (produced > 0U && req->internal.response.cb) {
+			enum http_final_call cb_final = HTTP_DATA_MORE;
+
+			if (final && gzip->stream_ended && gzip->stream.avail_in == 0U) {
+				cb_final = HTTP_DATA_FINAL;
+			}
+
+			req->internal.response.body_frag_start = gzip->out_buf;
+			req->internal.response.body_frag_len = produced;
+			req->internal.response.data_len = produced;
+
+			cb_ret = req->internal.response.cb(&req->internal.response,
+							  cb_final,
+							  req->internal.user_data);
+			if (cb_ret < 0) {
+				return cb_ret;
+			}
+		}
+
+		if (gzip->stream_ended ||
+		    (zret == Z_BUF_ERROR && produced == 0U && gzip->stream.avail_in == 0U)) {
+			break;
+		}
+
+		if (gzip->stream.avail_out == 0U && !final && req->internal.response.cb == NULL) {
+			return -ENOMEM;
+		}
+
+		if (avail_in_before == gzip->stream.avail_in &&
+		    avail_out_before == gzip->stream.avail_out) {
+			break;
+		}
+	}
+
+	if (final && req->internal.response.cb && !gzip->stream_ended) {
+		NET_DBG("Compressed response ended before gzip stream finished");
+		return -EBADMSG;
+	}
+
+	return 0;
+}
+
+static bool http_use_response_decompression(const struct http_request *req)
+{
+	int window_bits;
+
+	if (req->decompress_buf == NULL) {
+		return false;
+	}
+
+	window_bits =
+		http_get_decompression_window_bits(req->internal.response.content_encoding);
+
+	return window_bits != 0;
+}
+#endif /* CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP || CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE */
+
 static int http_wait_data(int sock, struct http_request *req, const k_timepoint_t req_end_timepoint)
 {
 	int total_received = 0;
@@ -483,6 +775,26 @@ static int http_wait_data(int sock, struct http_request *req, const k_timepoint_
 	int received, ret;
 	struct zsock_pollfd fds[1];
 	int nfds = 1;
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+	struct http_gzip_ctx gzip_ctx = { 0 };
+
+	if (req->decompress_buf != NULL) {
+		if (req->decompress_buf_len == 0U) {
+			ret = -EINVAL;
+			goto error;
+		}
+
+		if (req->decompress_buf_len < 16U) {
+			ret = -ENOMEM;
+			goto error;
+		}
+
+		gzip_ctx.out_buf = req->decompress_buf;
+		gzip_ctx.out_buf_len = req->decompress_buf_len;
+		gzip_ctx.window_bits = 0;
+	}
+#endif
 
 	fds[0].fd = sock;
 	fds[0].events = ZSOCK_POLLIN;
@@ -566,19 +878,55 @@ static int http_wait_data(int sock, struct http_request *req, const k_timepoint_
 			}
 
 			if (req->internal.response.message_complete) {
-				http_report_complete(req);
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+				if (http_use_response_decompression(req)) {
+					gzip_ctx.window_bits =
+						http_get_decompression_window_bits(
+							req->internal.response.content_encoding);
+					ret = http_report_decompressed(req, &gzip_ctx,
+							       HTTP_DATA_FINAL);
+				} else {
+#endif
+
+					http_report_complete(req);
+					ret = 0;
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+				}
+#endif
 			} else {
-				ret = http_report_progress(req);
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+				if (http_use_response_decompression(req)) {
+					gzip_ctx.window_bits =
+						http_get_decompression_window_bits(
+							req->internal.response.content_encoding);
+					ret = http_report_decompressed(req, &gzip_ctx,
+							       HTTP_DATA_MORE);
+				} else {
+#endif
+					ret = http_report_progress(req);
+#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+	defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+				}
+#endif
+
 				if (ret < 0) {
 					LOG_DBG("Connection aborted by the application (%d)",
 						ret);
-					return -ECONNABORTED;
+					ret = -ECONNABORTED;
+					goto error;
 				}
 
 				/* Re-use the result buffer and start to fill it again */
 				req->internal.response.data_len = 0;
 				req->internal.response.body_frag_start = NULL;
 				req->internal.response.body_frag_len = 0;
+			}
+
+			if (ret < 0) {
+				goto error;
 			}
 
 			if (offset > 0) {
@@ -601,6 +949,11 @@ static int http_wait_data(int sock, struct http_request *req, const k_timepoint_
 	 */
 	req->data_len = offset;
 
+	#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+		defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+	http_gzip_deinit(&gzip_ctx);
+	#endif
+
 	return total_received;
 
 closed:
@@ -620,8 +973,38 @@ closed:
 	ret = -ECONNRESET;
 
 error:
+	#if defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_GZIP) || \
+		defined(CONFIG_HTTP_CLIENT_DECOMPRESSION_DEFLATE)
+	http_gzip_deinit(&gzip_ctx);
+	#endif
+
 	LOG_DBG("Connection error (%d)", ret);
 	return ret;
+}
+
+static bool http_header_name_present(const char * const *headers, const char *name)
+{
+	size_t name_len = strlen(name);
+
+	if (headers == NULL) {
+		return false;
+	}
+
+	for (int i = 0; headers[i] != NULL; i++) {
+		if (strncasecmp(headers[i], name, name_len) == 0) {
+			const char *header = headers[i] + name_len;
+
+			while (*header == ' ' || *header == '\t') {
+				header++;
+			}
+
+			if (*header == ':') {
+				return true;
+			}
+		}
+	}
+
+	return false;
 }
 
 int http_client_req(int sock, struct http_request *req,
@@ -648,6 +1031,7 @@ int http_client_req(int sock, struct http_request *req,
 	req->internal.response.cb = req->response;
 	req->internal.response.recv_buf = req->recv_buf;
 	req->internal.response.recv_buf_len = req->recv_buf_len;
+	req->internal.response.content_encoding = HTTP_CONTENT_ENCODING_NONE;
 	req->internal.user_data = user_data;
 	req->internal.sock = sock;
 
@@ -678,6 +1062,32 @@ int http_client_req(int sock, struct http_request *req,
 				     &send_buf_pos, req_end_timepoint, "Host", ": ", req->host,
 				     HTTP_CRLF, NULL);
 
+		if (ret < 0) {
+			goto out;
+		}
+
+		total_sent += ret;
+	}
+
+	if ((req->accept_encoding_gzip || req->accept_encoding_deflate) &&
+	    !req->optional_headers_cb &&
+	    !http_header_name_present(req->header_fields, "Accept-Encoding") &&
+	    !http_header_name_present((const char * const *)req->optional_headers,
+				      "Accept-Encoding")) {
+		const char *encoding = NULL;
+
+		if (req->accept_encoding_gzip && req->accept_encoding_deflate) {
+			encoding = "gzip, deflate";
+		} else if (req->accept_encoding_gzip) {
+			encoding = "gzip";
+		} else {
+			encoding = "deflate";
+		}
+
+		ret = http_send_data(sock, send_buf, send_buf_max_len,
+				     &send_buf_pos, req_end_timepoint,
+				     "Accept-Encoding", ": ", encoding, HTTP_CRLF,
+				     NULL);
 		if (ret < 0) {
 			goto out;
 		}
