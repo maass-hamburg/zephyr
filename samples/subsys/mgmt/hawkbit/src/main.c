@@ -13,7 +13,15 @@
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/reboot.h>
 #include <zephyr/logging/log.h>
+
+#include <errno.h>
+#include <string.h>
+
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+#include <zcbor_encode.h>
+#else
 #include <zephyr/data/json.h>
+#endif
 
 #if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
 #include <zephyr/net/tls_credentials.h>
@@ -23,6 +31,7 @@
 LOG_MODULE_REGISTER(main);
 
 #ifdef CONFIG_HAWKBIT_CUSTOM_ATTRIBUTES
+#ifdef CONFIG_HAWKBIT_USE_JSON
 struct hawkbit_cfg_data {
 	const char *VIN;
 	const char *customAttr;
@@ -42,17 +51,44 @@ static const struct json_obj_descr json_cfg_descr[] = {
 	JSON_OBJ_DESCR_PRIM(struct hawkbit_cfg, mode, JSON_TOK_STRING),
 	JSON_OBJ_DESCR_OBJECT(struct hawkbit_cfg, data, json_cfg_data_descr),
 };
+#endif /* CONFIG_HAWKBIT_USE_JSON */
 
-int hawkbit_new_config_data_cb(const char *device_id, uint8_t *buffer, const size_t buffer_size)
+ssize_t hawkbit_new_config_data_cb(const char *device_id, uint8_t *buffer, const size_t buffer_size)
 {
+	const char *custom_attr = "Hello World!";
+
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	ZCBOR_STATE_E(zse, 3, buffer, buffer_size, 1);
+
+	bool ok = zcbor_map_start_encode(zse, 2) &&
+			  zcbor_tstr_put_lit(zse, "mode") &&
+			  zcbor_tstr_put_lit(zse, "merge") &&
+			  zcbor_tstr_put_lit(zse, "data") &&
+			  zcbor_map_start_encode(zse, 2) &&
+			  zcbor_tstr_put_lit(zse, "VIN") &&
+			  zcbor_tstr_put_term(zse, device_id, strlen(device_id)) &&
+			  zcbor_tstr_put_lit(zse, "customAttr") &&
+			  zcbor_tstr_put_term(zse, custom_attr, strlen(custom_attr)) &&
+			  zcbor_map_end_encode(zse, 2) &&
+			  zcbor_map_end_encode(zse, 2);
+
+	if (!ok) {
+		return -EINVAL;
+	}
+
+	return (ssize_t)(zse->payload - buffer);
+#else
 	struct hawkbit_cfg cfg = {
 		.mode = "merge",
 		.data.VIN = device_id,
-		.data.customAttr = "Hello World!",
+		.data.customAttr = custom_attr,
 	};
 
-	return json_obj_encode_buf(json_cfg_descr, ARRAY_SIZE(json_cfg_descr), &cfg, buffer,
-				   buffer_size);
+	int ret = json_obj_encode_buf(json_cfg_descr, ARRAY_SIZE(json_cfg_descr), &cfg, buffer,
+				      buffer_size);
+
+	return ret < 0 ? ret : (ssize_t)strnlen((char *)buffer, buffer_size);
+#endif
 }
 #endif /* CONFIG_HAWKBIT_CUSTOM_ATTRIBUTES */
 

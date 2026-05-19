@@ -11,7 +11,6 @@ menuconfig HAWKBIT
 	depends on IMG_MANAGER
 	depends on NETWORKING
 	depends on HTTP_CLIENT
-	depends on JSON_LIBRARY
 	depends on BOOTLOADER_MCUBOOT
 	depends on SMF
 	depends on SMF_ANCESTOR_SUPPORT
@@ -250,6 +249,29 @@ config HAWKBIT_SAVE_PROGRESS_INTERVAL
 	help
 	  Set the interval (in percent) that the hawkBit update download progress will be saved.
 	  0 means that the progress will be saved every time a new chunk is downloaded.
+choice HAWKBIT_ENCODING
+	prompt "Which encoding is used"
+	default HAWKBIT_USE_JSON
+
+config HAWKBIT_USE_JSON
+	bool "Use JSON encoding for the hawkBit DDI API"
+	depends on JSON_LIBRARY
+
+config HAWKBIT_USE_CBOR
+	bool "Use CBOR encoding for the hawkBit DDI API"
+	depends on ZCBOR
+	help
+	  When enabled the hawkBit client sends an "Accept: application/cbor"
+	  header with GET requests so that the server returns CBOR-encoded
+	  responses, and encodes PUT/POST payloads as CBOR instead of JSON.
+	  CBOR is more compact than JSON on the wire, which reduces bandwidth
+	  usage on constrained networks.
+
+	  Note: when this option is enabled the configData callback (used by
+	  CONFIG_HAWKBIT_CUSTOM_ATTRIBUTES) is bypassed; the device VIN is
+	  always encoded directly by the library.
+
+endchoice
 
 config HAWKBIT_CONFIRM_IMG_ON_INIT
 	bool "Confirm boot image at hawkBit init"

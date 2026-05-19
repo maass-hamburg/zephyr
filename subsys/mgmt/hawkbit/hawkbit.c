@@ -48,7 +48,22 @@ LOG_MODULE_REGISTER(hawkbit, CONFIG_HAWKBIT_LOG_LEVEL);
 
 #define HAWKBIT_JSON_URL "/" CONFIG_HAWKBIT_TENANT "/controller/v1"
 
-#define HTTP_HEADER_CONTENT_TYPE_JSON "application/json;charset=UTF-8"
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+/** HTTP Content-Type value for CBOR payloads. */
+#define HAWKBIT_HTTP_HEADER_CONTENT_TYPE "application/cbor"
+
+/** HTTP Accept header line (including CRLF) requesting a CBOR response. */
+#define HTTP_HEADER_ACCEPT_CBOR "Accept: application/cbor\r\n"
+
+/* Extra headers array used for GET requests when CBOR is enabled */
+static const char * const hawkbit_cbor_accept_headers[] = {
+	HTTP_HEADER_ACCEPT_CBOR,
+	NULL,
+};
+#else
+/** HTTP Content-Type value for JSON payloads. */
+#define HAWKBIT_HTTP_HEADER_CONTENT_TYPE "application/json;charset=UTF-8"
+#endif /* CONFIG_HAWKBIT_USE_CBOR */
 
 #define SLOT1_LABEL slot1_partition
 #define SLOT1_SIZE  PARTITION_SIZE(SLOT1_LABEL)
@@ -1000,7 +1015,7 @@ static bool send_request(struct hawkbit_context *hb_context, enum hawkbit_http_r
 		 * PUT: /{tenant}/controller/v1/{controllerId}/configData
 		 */
 		http_req.method = HTTP_PUT;
-		http_req.content_type_value = HTTP_HEADER_CONTENT_TYPE_JSON;
+		http_req.content_type_value = HAWKBIT_HTTP_HEADER_CONTENT_TYPE;
 		http_req.payload = status_buffer;
 		http_req.payload_len = payload_len;
 
@@ -1017,7 +1032,7 @@ static bool send_request(struct hawkbit_context *hb_context, enum hawkbit_http_r
 		 * POST: /{tenant}/controller/v1/{controllerId}/deploymentBase/{actionId}/feedback
 		 */
 		http_req.method = HTTP_POST;
-		http_req.content_type_value = HTTP_HEADER_CONTENT_TYPE_JSON;
+		http_req.content_type_value = HAWKBIT_HTTP_HEADER_CONTENT_TYPE;
 		http_req.payload = status_buffer;
 		http_req.payload_len = payload_len;
 
@@ -1037,7 +1052,9 @@ static bool send_request(struct hawkbit_context *hb_context, enum hawkbit_http_r
 		http_req.method = HTTP_GET;
 		hb_context->dl.http_content_size = 0;
 		hb_context->dl.downloaded_size = 0;
-
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+		http_req.optional_headers = (const char **)hawkbit_cbor_accept_headers;
+#endif
 		break;
 
 	case HAWKBIT_DOWNLOAD:
