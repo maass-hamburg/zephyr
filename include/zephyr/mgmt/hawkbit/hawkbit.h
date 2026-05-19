@@ -21,6 +21,7 @@
 #define ZEPHYR_INCLUDE_MGMT_HAWKBIT_HAWKBIT_H_
 
 #include <stdint.h>
+#include <sys/types.h>
 
 /**
  * @brief Response message from hawkBit.
@@ -66,8 +67,8 @@ enum hawkbit_response {
  * @param buffer The buffer to store the json.
  * @param buffer_size The size of the buffer.
  */
-typedef int (*hawkbit_config_device_data_cb_handler_t)(const char *device_id, uint8_t *buffer,
-						  const size_t buffer_size);
+typedef ssize_t (*hawkbit_config_device_data_cb_handler_t)(const char *device_id, uint8_t *buffer,
+							   const size_t buffer_size);
 
 /**
  * @brief Set the custom data callback.

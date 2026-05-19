@@ -13,7 +13,7 @@
 #ifndef __HAWKBIT_PRIV_H__
 #define __HAWKBIT_PRIV_H__
 
-#include <zephyr/data/json.h>
+#include <sys/types.h>
 
 #define HAWKBIT_SLEEP_LENGTH 8
 
@@ -133,5 +133,15 @@ struct hawkbit_dep_res {
 struct hawkbit_dep_fbk {
 	struct hawkbit_status status;
 };
+
+ssize_t hawkbit_encode_cfg(const char *device_id, uint8_t *buf, size_t buf_len);
+
+ssize_t hawkbit_encode_cancel(const struct hawkbit_cancel *cancel, uint8_t *buf, size_t buf_len);
+
+ssize_t hawkbit_encode_dep_fbk(const struct hawkbit_dep_fbk *fbk, uint8_t *buf, size_t buf_len);
+
+int hawkbit_decode_ctl_res(uint8_t *buf, size_t len, struct hawkbit_ctl_res *res);
+
+int hawkbit_decode_dep_res(uint8_t *buf, size_t len, struct hawkbit_dep_res *res);
 
 #endif /* __HAWKBIT_PRIV_H__ */
