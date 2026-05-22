@@ -15,6 +15,17 @@
 
 #include <sys/types.h>
 
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+#include <zcbor_common.h>
+#define HAWKBIT_STR struct zcbor_string
+#define HAWKBIT_STR_PRINT_SPEC "%.*s"
+#define HAWKBIT_STR_PRINT_ARG(str) (int)(str).len, (str).value
+#else
+#define HAWKBIT_STR const char *
+#define HAWKBIT_STR_PRINT_SPEC "%s"
+#define HAWKBIT_STR_PRINT_ARG(str) (str)
+#endif
+
 #define HAWKBIT_SLEEP_LENGTH 8
 
 enum hawkbit_http_request {
@@ -43,20 +54,20 @@ enum hawkbit_status_exec {
 };
 
 struct hawkbit_href {
-	const char *href;
+	HAWKBIT_STR href;
 };
 
 struct hawkbit_status_result {
-	const char *finished;
+	HAWKBIT_STR finished;
 };
 
 struct hawkbit_status {
 	struct hawkbit_status_result result;
-	const char *execution;
+	HAWKBIT_STR execution;
 };
 
 struct hawkbit_ctl_res_sleep {
-	const char *sleep;
+	HAWKBIT_STR sleep;
 };
 
 struct hawkbit_ctl_res_polling {
@@ -75,11 +86,11 @@ struct hawkbit_ctl_res {
 };
 
 struct hawkbit_cfg_data {
-	const char *VIN;
+	HAWKBIT_STR VIN;
 };
 
 struct hawkbit_cfg {
-	const char *mode;
+	HAWKBIT_STR mode;
 	struct hawkbit_cfg_data data;
 };
 
@@ -93,9 +104,9 @@ struct hawkbit_cancel {
 #define HAWKBIT_DEP_MAX_CHUNK_ARTS 1
 
 struct hawkbit_dep_res_hashes {
-	const char *sha1;
-	const char *md5;
-	const char *sha256;
+	HAWKBIT_STR sha1;
+	HAWKBIT_STR md5;
+	HAWKBIT_STR sha256;
 };
 
 struct hawkbit_dep_res_links {
@@ -104,29 +115,29 @@ struct hawkbit_dep_res_links {
 };
 
 struct hawkbit_dep_res_arts {
-	const char *filename;
+	HAWKBIT_STR filename;
 	struct hawkbit_dep_res_hashes hashes;
 	struct hawkbit_dep_res_links _links;
 	int size;
 };
 
 struct hawkbit_dep_res_chunk {
-	const char *part;
-	const char *name;
-	const char *version;
+	HAWKBIT_STR part;
+	HAWKBIT_STR name;
+	HAWKBIT_STR version;
 	struct hawkbit_dep_res_arts artifacts[HAWKBIT_DEP_MAX_CHUNK_ARTS];
 	size_t num_artifacts;
 };
 
 struct hawkbit_dep_res_deploy {
-	const char *download;
-	const char *update;
+	HAWKBIT_STR download;
+	HAWKBIT_STR update;
 	struct hawkbit_dep_res_chunk chunks[HAWKBIT_DEP_MAX_CHUNKS];
 	size_t num_chunks;
 };
 
 struct hawkbit_dep_res {
-	const char *id;
+	HAWKBIT_STR id;
 	struct hawkbit_dep_res_deploy deployment;
 };
 

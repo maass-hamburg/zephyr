@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <zephyr/drivers/flash.h>
 #include <zephyr/kernel.h>
@@ -136,6 +137,15 @@ static struct hawkbit_config {
 #else
 #define HAWKBIT_CERT_TAG 0
 #endif /* CONFIG_HAWKBIT_USE_DYNAMIC_CERT_TAG */
+
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+#define HAWKBIT_STR_LIT(lit) (struct zcbor_string){ \
+		.value = (uint8_t *)lit,            \
+		.len = sizeof(lit) - 1,             \
+	}
+#else
+#define HAWKBIT_STR_LIT(lit) lit
+#endif
 
 struct hawkbit_download {
 	size_t downloaded_size;
@@ -442,9 +452,17 @@ static void cleanup_connection(int *hb_sock)
 	}
 }
 
-static int hawkbit_time2sec(const char *s)
+static int hawkbit_time2sec(HAWKBIT_STR s_time)
 {
 	int sec;
+	char *s;
+
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	s = (char *)s_time.value;
+	s[s_time.len] = '\0';
+#else
+	s = s_time;
+#endif
 
 	/* Time: HH:MM:SS */
 	sec = strtol(s, NULL, 10) * (60 * 60);
@@ -458,41 +476,72 @@ static int hawkbit_time2sec(const char *s)
 	}
 }
 
-static const char *hawkbit_status_finished(enum hawkbit_status_fini f)
+static inline bool hawkbit_str_is_set(HAWKBIT_STR str)
+{
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	return str.value != NULL;
+#else
+	return str != NULL;
+#endif
+}
+
+static inline size_t hawkbit_str_len(HAWKBIT_STR str)
+{
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	return str.len;
+#else
+	return str != NULL ? strlen(str) : 0;
+#endif
+}
+
+static inline bool hawkbit_str_eq_lit(HAWKBIT_STR str, const char *lit, size_t lit_len)
+{
+	if (hawkbit_str_len(str) != lit_len) {
+		return false;
+	}
+
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	return memcmp((const char *)str.value, lit, lit_len) == 0;
+#else
+	return memcmp(str, lit, lit_len) == 0;
+#endif
+}
+
+static HAWKBIT_STR hawkbit_status_finished(enum hawkbit_status_fini f)
 {
 	switch (f) {
 	case HAWKBIT_STATUS_FINISHED_SUCCESS:
-		return "success";
+		return HAWKBIT_STR_LIT("success");
 	case HAWKBIT_STATUS_FINISHED_FAILURE:
-		return "failure";
+		return HAWKBIT_STR_LIT("failure");
 	case HAWKBIT_STATUS_FINISHED_NONE:
-		return "none";
+		return HAWKBIT_STR_LIT("none");
 	default:
 		LOG_ERR("%d is invalid", (int)f);
-		return NULL;
+		return HAWKBIT_STR_LIT("");
 	}
 }
 
-static const char *hawkbit_status_execution(enum hawkbit_status_exec e)
+static HAWKBIT_STR hawkbit_status_execution(enum hawkbit_status_exec e)
 {
 	switch (e) {
 	case HAWKBIT_STATUS_EXEC_CLOSED:
-		return "closed";
+		return HAWKBIT_STR_LIT("closed");
 	case HAWKBIT_STATUS_EXEC_PROCEEDING:
-		return "proceeding";
+		return HAWKBIT_STR_LIT("proceeding");
 	case HAWKBIT_STATUS_EXEC_CANCELED:
-		return "canceled";
+		return HAWKBIT_STR_LIT("canceled");
 	case HAWKBIT_STATUS_EXEC_SCHEDULED:
-		return "scheduled";
+		return HAWKBIT_STR_LIT("scheduled");
 	case HAWKBIT_STATUS_EXEC_REJECTED:
-		return "rejected";
+		return HAWKBIT_STR_LIT("rejected");
 	case HAWKBIT_STATUS_EXEC_RESUMED:
-		return "resumed";
+		return HAWKBIT_STR_LIT("resumed");
 	case HAWKBIT_STATUS_EXEC_NONE:
-		return "none";
+		return HAWKBIT_STR_LIT("none");
 	default:
 		LOG_ERR("%d is invalid", (int)e);
-		return NULL;
+		return HAWKBIT_STR_LIT("");
 	}
 }
 
@@ -539,10 +588,11 @@ uint32_t hawkbit_get_poll_interval(void)
 static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
 {
 	int sleep_time;
-	const char *sleep = hawkbit_res->config.polling.sleep;
+	HAWKBIT_STR sleep = hawkbit_res->config.polling.sleep;
 
-	if (strlen(sleep) != HAWKBIT_SLEEP_LENGTH) {
-		LOG_ERR("Invalid poll sleep: %s", sleep);
+	if (hawkbit_str_len(sleep) != HAWKBIT_SLEEP_LENGTH) {
+		LOG_ERR("Invalid poll sleep: " HAWKBIT_STR_PRINT_SPEC,
+			HAWKBIT_STR_PRINT_ARG(sleep));
 	} else {
 		sleep_time = hawkbit_time2sec(sleep);
 		if (sleep_time > 0 && poll_sleep != sleep_time) {
@@ -552,11 +602,19 @@ static void hawkbit_update_sleep(struct hawkbit_ctl_res *hawkbit_res)
 	}
 }
 
-static char *hawkbit_get_url(const char *href)
+static char *hawkbit_get_url(HAWKBIT_STR href)
 {
 	char *helper;
+	const char *ptr;
 
-	helper = strstr(href, "//");
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	ptr = href.value;
+	((char *)href.value)[href.len] = '\0';
+#else
+	ptr = href;
+#endif
+
+	helper = strstr(ptr, "//");
 	if (helper != NULL) {
 		helper = strstr(helper + 2u, "/");
 	}
@@ -575,11 +633,20 @@ static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res,
 					 uint32_t *cancel_action_id)
 {
 	char *helper;
+	char *href_ptr;
 
-	helper = strstr(res->_links.cancelAction.href, "cancelAction/");
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	href_ptr = (char *)res->_links.cancelAction.href.value;
+	href_ptr[res->_links.cancelAction.href.len] = '\0';
+
+#else
+	href_ptr = res->_links.cancelAction.href;
+#endif
+
+	helper = strstr(href_ptr, "cancelAction/");
 	if (!helper) {
 		/* A badly formatted cancel base is a server error */
-		LOG_ERR("Missing %s/ in href %s", "cancelAction", res->_links.cancelAction.href);
+		LOG_ERR("Missing %s/ in href %s", "cancelAction", href_ptr);
 		return -EINVAL;
 	}
 
@@ -597,8 +664,16 @@ static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res,
 static int hawkbit_deployment_get_action_id(struct hawkbit_dep_res *res, uint32_t *action_id)
 {
 	uint32_t id;
+	char *action_id_ptr;
 
-	id = strtol(res->id, NULL, 10);
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+	action_id_ptr = (char *)res->id.value;
+	action_id_ptr[res->id.len] = '\0';
+#else
+	action_id_ptr = res->id;
+#endif
+
+	id = strtol(action_id_ptr, NULL, 10);
 	if (id == 0) {
 		LOG_ERR("Invalid action_id: %d", id);
 		return -EINVAL;
@@ -616,7 +691,7 @@ static int hawkbit_deployment_get_action_id(struct hawkbit_dep_res *res, uint32_
 static int hawkbit_parse_deployment(struct hawkbit_context *hb_context, struct hawkbit_dep_res *res,
 				    char **download_http)
 {
-	const char *href;
+	HAWKBIT_STR href;
 	struct hawkbit_dep_res_chunk *chunk;
 	size_t num_chunks, num_artifacts;
 	struct hawkbit_dep_res_arts *artifact;
@@ -628,8 +703,9 @@ static int hawkbit_parse_deployment(struct hawkbit_context *hb_context, struct h
 	}
 
 	chunk = &res->deployment.chunks[0];
-	if (strcmp("bApp", chunk->part)) {
-		LOG_ERR("Only part 'bApp' is supported; got %s", chunk->part);
+	if (!hawkbit_str_eq_lit(chunk->part, "bApp", sizeof("bApp") - 1)) {
+		LOG_ERR("Only part 'bApp' is supported; got " HAWKBIT_STR_PRINT_SPEC,
+			HAWKBIT_STR_PRINT_ARG(chunk->part));
 		return -EINVAL;
 	}
 
@@ -640,7 +716,15 @@ static int hawkbit_parse_deployment(struct hawkbit_context *hb_context, struct h
 	}
 
 	artifact = &chunk->artifacts[0];
-	if (hex2bin(artifact->hashes.sha256, SHA256_HASH_SIZE << 1, hb_context->dl.file_hash,
+	if (!hawkbit_str_is_set(artifact->hashes.sha256) ||
+	    hawkbit_str_len(artifact->hashes.sha256) != (SHA256_HASH_SIZE << 1) ||
+	    hex2bin(
+#ifdef CONFIG_HAWKBIT_USE_CBOR
+		    (const char *)artifact->hashes.sha256.value,
+#else
+		    artifact->hashes.sha256,
+#endif
+		    hawkbit_str_len(artifact->hashes.sha256), hb_context->dl.file_hash,
 		    sizeof(hb_context->dl.file_hash)) != SHA256_HASH_SIZE) {
 		return -EINVAL;
 	}
@@ -657,7 +741,7 @@ static int hawkbit_parse_deployment(struct hawkbit_context *hb_context, struct h
 	 * Find the download-http href.
 	 */
 	href = artifact->_links.download_http.href;
-	if (!href) {
+	if (!hawkbit_str_is_set(href)) {
 		LOG_ERR("Missing expected %s href", "download-http");
 		return -EINVAL;
 	}
@@ -679,19 +763,30 @@ static void hawkbit_dump_deployment(struct hawkbit_dep_res *d)
 	struct hawkbit_dep_res_arts *a = &c->artifacts[0];
 	struct hawkbit_dep_res_links *l = &a->_links;
 
-	LOG_DBG("%s=%s", "id", d->id);
-	LOG_DBG("%s=%s", "download", d->deployment.download);
-	LOG_DBG("%s=%s", "update", d->deployment.update);
-	LOG_DBG("chunks[0].%s=%s", "part", c->part);
-	LOG_DBG("chunks[0].%s=%s", "name", c->name);
-	LOG_DBG("chunks[0].%s=%s", "version", c->version);
-	LOG_DBG("chunks[0].artifacts[0].%s=%s", "filename", a->filename);
-	LOG_DBG("chunks[0].artifacts[0].%s=%s", "hashes.sha1", a->hashes.sha1);
-	LOG_DBG("chunks[0].artifacts[0].%s=%s", "hashes.md5", a->hashes.md5);
-	LOG_DBG("chunks[0].artifacts[0].%s=%s", "hashes.sha256", a->hashes.sha256);
+	LOG_DBG("%s=" HAWKBIT_STR_PRINT_SPEC, "id", HAWKBIT_STR_PRINT_ARG(d->id));
+	LOG_DBG("%s=" HAWKBIT_STR_PRINT_SPEC, "download",
+		HAWKBIT_STR_PRINT_ARG(d->deployment.download));
+	LOG_DBG("%s=" HAWKBIT_STR_PRINT_SPEC, "update",
+		HAWKBIT_STR_PRINT_ARG(d->deployment.update));
+	LOG_DBG("chunks[0].%s=" HAWKBIT_STR_PRINT_SPEC, "part",
+		HAWKBIT_STR_PRINT_ARG(c->part));
+	LOG_DBG("chunks[0].%s=" HAWKBIT_STR_PRINT_SPEC, "name",
+		HAWKBIT_STR_PRINT_ARG(c->name));
+	LOG_DBG("chunks[0].%s=" HAWKBIT_STR_PRINT_SPEC, "version",
+		HAWKBIT_STR_PRINT_ARG(c->version));
+	LOG_DBG("chunks[0].artifacts[0].%s=" HAWKBIT_STR_PRINT_SPEC, "filename",
+		HAWKBIT_STR_PRINT_ARG(a->filename));
+	LOG_DBG("chunks[0].artifacts[0].%s=" HAWKBIT_STR_PRINT_SPEC, "hashes.sha1",
+		HAWKBIT_STR_PRINT_ARG(a->hashes.sha1));
+	LOG_DBG("chunks[0].artifacts[0].%s=" HAWKBIT_STR_PRINT_SPEC, "hashes.md5",
+		HAWKBIT_STR_PRINT_ARG(a->hashes.md5));
+	LOG_DBG("chunks[0].artifacts[0].%s=" HAWKBIT_STR_PRINT_SPEC, "hashes.sha256",
+		HAWKBIT_STR_PRINT_ARG(a->hashes.sha256));
 	LOG_DBG("chunks[0].size=%d", a->size);
-	LOG_DBG("%s=%s", "download-http", l->download_http.href);
-	LOG_DBG("%s=%s", "md5sum-http", l->md5sum_http.href);
+	LOG_DBG("%s=" HAWKBIT_STR_PRINT_SPEC, "download-http",
+		HAWKBIT_STR_PRINT_ARG(l->download_http.href));
+	LOG_DBG("%s=" HAWKBIT_STR_PRINT_SPEC, "md5sum-http",
+		HAWKBIT_STR_PRINT_ARG(l->md5sum_http.href));
 }
 
 int hawkbit_set_custom_data_cb(hawkbit_config_device_data_cb_handler_t cb)
@@ -1231,23 +1326,25 @@ static enum smf_state_result s_probe(void *o)
 		return SMF_EVENT_HANDLED;
 	}
 
-	if (s->hb_context.results.base.config.polling.sleep) {
+	if (hawkbit_str_is_set(s->hb_context.results.base.config.polling.sleep)) {
 		/* Update the sleep time. */
-		LOG_DBG("config.polling.sleep=%s", s->hb_context.results.base.config.polling.sleep);
+		LOG_DBG("config.polling.sleep=" HAWKBIT_STR_PRINT_SPEC,
+			HAWKBIT_STR_PRINT_ARG(s->hb_context.results.base.config.polling.sleep));
 		hawkbit_update_sleep(&s->hb_context.results.base);
 	}
 
-	if (s->hb_context.results.base._links.cancelAction.href) {
-		LOG_DBG("_links.%s.href=%s", "cancelAction",
-			s->hb_context.results.base._links.cancelAction.href);
+	if (hawkbit_str_is_set(s->hb_context.results.base._links.cancelAction.href)) {
+		LOG_DBG("_links.%s.href=" HAWKBIT_STR_PRINT_SPEC, "cancelAction",
+			HAWKBIT_STR_PRINT_ARG(s->hb_context.results.base._links.cancelAction.href));
 		smf_set_state(SMF_CTX(s), &hawkbit_states[S_HAWKBIT_CANCEL]);
-	} else if (s->hb_context.results.base._links.configData.href) {
-		LOG_DBG("_links.%s.href=%s", "configData",
-			s->hb_context.results.base._links.configData.href);
+	} else if (hawkbit_str_is_set(s->hb_context.results.base._links.configData.href)) {
+		LOG_DBG("_links.%s.href=" HAWKBIT_STR_PRINT_SPEC, "configData",
+			HAWKBIT_STR_PRINT_ARG(s->hb_context.results.base._links.configData.href));
 		smf_set_state(SMF_CTX(s), &hawkbit_states[S_HAWKBIT_CONFIG_DEVICE]);
-	} else if (s->hb_context.results.base._links.deploymentBase.href) {
-		LOG_DBG("_links.%s.href=%s", "deploymentBase",
-			s->hb_context.results.base._links.deploymentBase.href);
+	} else if (hawkbit_str_is_set(s->hb_context.results.base._links.deploymentBase.href)) {
+		LOG_DBG("_links.%s.href=" HAWKBIT_STR_PRINT_SPEC, "deploymentBase",
+			HAWKBIT_STR_PRINT_ARG(
+				s->hb_context.results.base._links.deploymentBase.href));
 		smf_set_state(SMF_CTX(s), &hawkbit_states[S_HAWKBIT_PROBE_DEPLOYMENT_BASE]);
 	} else {
 		s->hb_context.code_status = HAWKBIT_NO_UPDATE;
@@ -1421,8 +1518,10 @@ static enum smf_state_result s_report(void *o)
 	snprintk(url_buffer, sizeof(url_buffer), "%s/%s/%s/%u/%s", HAWKBIT_JSON_URL,
 		 s->device_id, "deploymentBase", s->hb_context.json_action_id, "feedback");
 
-	LOG_INF("Reporting deployment feedback %s (%s) for action %d",
-		feedback.status.result.finished, feedback.status.execution,
+	LOG_INF("Reporting deployment feedback " HAWKBIT_STR_PRINT_SPEC
+		" (" HAWKBIT_STR_PRINT_SPEC ") for action %u",
+		HAWKBIT_STR_PRINT_ARG(feedback.status.result.finished),
+		HAWKBIT_STR_PRINT_ARG(feedback.status.execution),
 		s->hb_context.json_action_id);
 
 	ret = hawkbit_encode_dep_fbk(&feedback, status_buffer, sizeof(status_buffer));

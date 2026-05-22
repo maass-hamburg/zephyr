@@ -17,52 +17,6 @@
 LOG_MODULE_DECLARE(hawkbit, CONFIG_HAWKBIT_LOG_LEVEL);
 
 /* ---------------------------------------------------------------------------
- * Deferred NUL-termination
- *
- * We collect every decoded CBOR tstr (pointer + length) into a small
- * registry during parsing without touching the receive buffer.  Only after
- * the top-level decode has succeeded do we write '\0' at the end of each
- * string in a single pass.  This keeps the buffer unmodified until parsing
- * is fully complete.
- * ---------------------------------------------------------------------------
- */
-
-/* Maximum number of tstr fields in any single top-level message.            */
-/* dep_res has the most: id + download + update + part + name + version +    */
-/* filename + sha1 + md5 + sha256 + 2 hrefs = 12.  20 gives a safe margin.  */
-#define CBOR_MAX_STRINGS 20
-
-
-static struct {
-	uint8_t *value[CBOR_MAX_STRINGS];
-	size_t n;
-} s_str_reg;
-
-/**
- * Record a CBOR tstr in the deferred-NUL registry and return its pointer.
- * Does NOT write '\0'; call cbor_nulterm_all() after decoding completes.
- */
-static const char *cbor_str_collect(const struct zcbor_string *s)
-{
-	if (s == NULL || s->len == 0 || s->value == NULL) {
-		return NULL;
-	}
-	if (s_str_reg.n < ARRAY_SIZE(s_str_reg.value)) {
-		s_str_reg.value[s_str_reg.n] = (uint8_t *)&s->value[s->len];
-		s_str_reg.n++;
-	}
-	return (const char *)s->value;
-}
-
-/** NUL-terminate all collected strings in one pass. */
-static void cbor_nulterm_all(void)
-{
-	for (size_t i = 0; i < s_str_reg.n; i++) {
-		*(s_str_reg.value[i]) = '\0';
-	}
-}
-
-/* ---------------------------------------------------------------------------
  * Generic CBOR map decoder
  *
  * Iterates over all key-value pairs in a CBOR map.  For each text-key that
@@ -144,30 +98,26 @@ static int cbor_map_decode(zcbor_state_t *state, struct cbor_map_entry *entries,
 /** Decode {"href": <tstr>} into struct hawkbit_href. */
 static bool decode_href(zcbor_state_t *state, struct hawkbit_href *out)
 {
-	struct zcbor_string href = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("href", zcbor_tstr_decode, &href),
+		ENTRY("href", zcbor_tstr_decode, &out->href),
 	};
 
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->href = cbor_str_collect(&href);
 	return true;
 }
 
 /** Decode {"sleep": <tstr>} into struct hawkbit_ctl_res_sleep. */
 static bool decode_sleep_map(zcbor_state_t *state, struct hawkbit_ctl_res_sleep *out)
 {
-	struct zcbor_string sleep_str = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("sleep", zcbor_tstr_decode, &sleep_str),
+		ENTRY("sleep", zcbor_tstr_decode, &out->sleep),
 	};
 
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->sleep = cbor_str_collect(&sleep_str);
 	return true;
 }
 
@@ -207,21 +157,19 @@ static bool decode_ctl_link_rel_item(zcbor_state_t *state, struct hawkbit_ctl_re
 		return false;
 	}
 
-	const char *href_ptr = cbor_str_collect(&href);
-
-	if (href_ptr == NULL || rel.value == NULL) {
+	if (href.value == NULL || rel.value == NULL) {
 		return true;
 	}
 
 	if (rel.len == sizeof("cancelAction") - 1 &&
 	    memcmp(rel.value, "cancelAction", rel.len) == 0) {
-		out->cancelAction.href = href_ptr;
+		out->cancelAction.href = href;
 	} else if (rel.len == sizeof("configData") - 1 &&
 		   memcmp(rel.value, "configData", rel.len) == 0) {
-		out->configData.href = href_ptr;
+		out->configData.href = href;
 	} else if (rel.len == sizeof("deploymentBase") - 1 &&
 		   memcmp(rel.value, "deploymentBase", rel.len) == 0) {
-		out->deploymentBase.href = href_ptr;
+		out->deploymentBase.href = href;
 	}
 
 	return true;
@@ -259,7 +207,6 @@ int hawkbit_decode_ctl_res(uint8_t *buf, size_t len, struct hawkbit_ctl_res *res
 	 */
 	ZCBOR_STATE_D(zsd, 4, buf, len, 1, 0);
 	memset(res, 0, sizeof(*res));
-	s_str_reg.n = 0;
 
 	struct cbor_map_entry entries[] = {
 		ENTRY("config",  decode_ctl_config_map, &res->config),
@@ -267,12 +214,7 @@ int hawkbit_decode_ctl_res(uint8_t *buf, size_t len, struct hawkbit_ctl_res *res
 		ENTRY("links",   decode_ctl_links_any,  &res->_links),
 	};
 
-	int ret = cbor_map_decode(zsd, entries, ARRAY_SIZE(entries));
-
-	if (ret == 0) {
-		cbor_nulterm_all();
-	}
-	return ret;
+	return cbor_map_decode(zsd, entries, ARRAY_SIZE(entries));
 }
 
 /* ---------------------------------------------------------------------------
@@ -306,19 +248,15 @@ int hawkbit_decode_ctl_res(uint8_t *buf, size_t len, struct hawkbit_ctl_res *res
 /** Decode {"sha1":..,"md5":..,"sha256":..} into struct hawkbit_dep_res_hashes. */
 static bool decode_dep_hashes_map(zcbor_state_t *state, struct hawkbit_dep_res_hashes *out)
 {
-	struct zcbor_string sha1 = {0}, md5 = {0}, sha256 = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("sha1",   zcbor_tstr_decode, &sha1),
-		ENTRY("md5",    zcbor_tstr_decode, &md5),
-		ENTRY("sha256", zcbor_tstr_decode, &sha256),
+		ENTRY("sha1",   zcbor_tstr_decode, &out->sha1),
+		ENTRY("md5",    zcbor_tstr_decode, &out->md5),
+		ENTRY("sha256", zcbor_tstr_decode, &out->sha256),
 	};
 
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->sha1   = cbor_str_collect(&sha1);
-	out->md5    = cbor_str_collect(&md5);
-	out->sha256 = cbor_str_collect(&sha256);
 	return true;
 }
 
@@ -350,9 +288,7 @@ static bool decode_dep_artifact_link_rel_item(zcbor_state_t *state,
 		return false;
 	}
 
-	const char *href_ptr = cbor_str_collect(&href);
-
-	if (href_ptr == NULL || rel.value == NULL) {
+	if (href.value == NULL || rel.value == NULL) {
 		return true;
 	}
 
@@ -360,12 +296,12 @@ static bool decode_dep_artifact_link_rel_item(zcbor_state_t *state,
 	     (memcmp(rel.value, "download-http", rel.len) == 0)) ||
 	    ((rel.len == sizeof("download") - 1) &&
 	     (memcmp(rel.value, "download", rel.len) == 0))) {
-		out->download_http.href = href_ptr;
+		out->download_http.href = href;
 	} else if (((rel.len == sizeof("md5sum-http") - 1) &&
 		    (memcmp(rel.value, "md5sum-http", rel.len) == 0)) ||
 		   ((rel.len == sizeof("md5sum") - 1) &&
 		    (memcmp(rel.value, "md5sum", rel.len) == 0))) {
-		out->md5sum_http.href = href_ptr;
+		out->md5sum_http.href = href;
 	}
 
 	return true;
@@ -396,10 +332,9 @@ static bool decode_dep_artifact_links_any(zcbor_state_t *state, struct hawkbit_d
 /** Decode a single artifact map into struct hawkbit_dep_res_arts. */
 static bool decode_dep_artifact(zcbor_state_t *state, struct hawkbit_dep_res_arts *out)
 {
-	struct zcbor_string filename = {0};
 	int32_t size_val = 0;
 	struct cbor_map_entry entries[] = {
-		ENTRY("filename", zcbor_tstr_decode,      &filename),
+		ENTRY("filename", zcbor_tstr_decode,      &out->filename),
 		ENTRY("hashes",   decode_dep_hashes_map,  &out->hashes),
 		ENTRY("size",     zcbor_int32_decode,      &size_val),
 		ENTRY("_links",   decode_dep_artifact_links_any, &out->_links),
@@ -409,7 +344,6 @@ static bool decode_dep_artifact(zcbor_state_t *state, struct hawkbit_dep_res_art
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->filename = cbor_str_collect(&filename);
 	out->size     = (int)size_val;
 	return true;
 }
@@ -440,20 +374,16 @@ static bool decode_artifacts_array(zcbor_state_t *state, struct hawkbit_dep_res_
 /** Decode a single chunk map into struct hawkbit_dep_res_chunk. */
 static bool decode_dep_chunk(zcbor_state_t *state, struct hawkbit_dep_res_chunk *out)
 {
-	struct zcbor_string part = {0}, name = {0}, version = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("part",      zcbor_tstr_decode,     &part),
-		ENTRY("name",      zcbor_tstr_decode,     &name),
-		ENTRY("version",   zcbor_tstr_decode,     &version),
+		ENTRY("part",      zcbor_tstr_decode,     &out->part),
+		ENTRY("name",      zcbor_tstr_decode,     &out->name),
+		ENTRY("version",   zcbor_tstr_decode,     &out->version),
 		ENTRY("artifacts", decode_artifacts_array, out),
 	};
 
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->part    = cbor_str_collect(&part);
-	out->name    = cbor_str_collect(&name);
-	out->version = cbor_str_collect(&version);
 	return true;
 }
 
@@ -483,18 +413,15 @@ static bool decode_chunks_array(zcbor_state_t *state, struct hawkbit_dep_res_dep
 /** Decode the "deployment" map into struct hawkbit_dep_res_deploy. */
 static bool decode_dep_deploy_map(zcbor_state_t *state, struct hawkbit_dep_res_deploy *out)
 {
-	struct zcbor_string download = {0}, update = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("download", zcbor_tstr_decode,  &download),
-		ENTRY("update",   zcbor_tstr_decode,  &update),
+		ENTRY("download", zcbor_tstr_decode,  &out->download),
+		ENTRY("update",   zcbor_tstr_decode,  &out->update),
 		ENTRY("chunks",   decode_chunks_array, out),
 	};
 
 	if (cbor_map_decode(state, entries, ARRAY_SIZE(entries)) != 0) {
 		return false;
 	}
-	out->download = cbor_str_collect(&download);
-	out->update   = cbor_str_collect(&update);
 	return true;
 }
 
@@ -508,20 +435,15 @@ int hawkbit_decode_dep_res(uint8_t *buf, size_t len, struct hawkbit_dep_res *res
 	 */
 	ZCBOR_STATE_D(zsd, 9, buf, len, 1, 0);
 	memset(res, 0, sizeof(*res));
-	s_str_reg.n = 0;
 
-	struct zcbor_string id = {0};
 	struct cbor_map_entry entries[] = {
-		ENTRY("id",         zcbor_tstr_decode,   &id),
+		ENTRY("id",         zcbor_tstr_decode,   &res->id),
 		ENTRY("deployment", decode_dep_deploy_map, &res->deployment),
 	};
 
 	if (cbor_map_decode(zsd, entries, ARRAY_SIZE(entries)) != 0) {
 		return -EINVAL;
 	}
-
-	res->id = cbor_str_collect(&id);
-	cbor_nulterm_all();
 	return 0;
 }
 
@@ -542,11 +464,11 @@ static ssize_t encode_status(const struct hawkbit_status *status, uint8_t *buf, 
 		  zcbor_tstr_put_lit(zse, "status") &&
 		  zcbor_map_start_encode(zse, 2) &&
 		  zcbor_tstr_put_lit(zse, "execution") &&
-		  zcbor_tstr_put_term(zse, status->execution, CONFIG_ZCBOR_MAX_STR_LEN) &&
+		  zcbor_tstr_encode(zse, &status->execution) &&
 		  zcbor_tstr_put_lit(zse, "result") &&
 		  zcbor_map_start_encode(zse, 1) &&
 		  zcbor_tstr_put_lit(zse, "finished") &&
-		  zcbor_tstr_put_term(zse, status->result.finished, CONFIG_ZCBOR_MAX_STR_LEN) &&
+		  zcbor_tstr_encode(zse, &status->result.finished) &&
 		  zcbor_map_end_encode(zse, 1) &&
 		  zcbor_map_end_encode(zse, 2) &&
 		  zcbor_map_end_encode(zse, 1);
