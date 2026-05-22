@@ -80,7 +80,7 @@ static int cmd_info(const struct shell *sh, size_t argc, char *argv)
 	hawkbit_get_firmware_version(firmware_version, BOOT_IMG_VER_STRLEN_MAX);
 	hawkbit_get_device_identity(device_id, DEVICE_ID_HEX_MAX_SIZE);
 
-	shell_print(sh, "Action id: %d", hawkbit_get_action_id());
+	shell_print(sh, "Action id: %u", hawkbit_get_action_id());
 	shell_print(sh, "Unique device id: %s", device_id);
 	shell_print(sh, "Firmware Version: %s", firmware_version);
 	shell_print(sh, "Server address: %s", hawkbit_get_server_addr());

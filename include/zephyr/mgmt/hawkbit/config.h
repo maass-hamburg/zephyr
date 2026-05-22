@@ -218,7 +218,7 @@ static inline sec_tag_t hawkbit_get_tls_tag(void)
  *
  * @return Action id.
  */
-int32_t hawkbit_get_action_id(void);
+uint32_t hawkbit_get_action_id(void);
 
 /**
  * @brief Get the hawkBit poll interval.

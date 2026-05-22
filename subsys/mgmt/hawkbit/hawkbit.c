@@ -93,7 +93,7 @@ static bool hawkbit_initialized;
 #endif
 
 static struct hawkbit_config {
-	int32_t action_id;
+	uint32_t action_id;
 #ifdef CONFIG_HAWKBIT_SET_SETTINGS_RUNTIME
 	char server_addr[SERVER_ADDR_LEN + 1];
 #ifdef CONFIG_HAWKBIT_USE_DOMAIN_NAME
@@ -153,7 +153,7 @@ struct hawkbit_context {
 	int sock;
 	uint8_t *response_data;
 	size_t response_data_size;
-	int32_t json_action_id;
+	uint32_t json_action_id;
 	struct hawkbit_download dl;
 	struct flash_img_context flash_ctx;
 	enum hawkbit_response code_status;
@@ -203,7 +203,7 @@ static int hawkbit_settings_set(const char *name, size_t len, settings_read_cb r
 		}
 
 		rc = read_cb(cb_arg, &hb_cfg.action_id, sizeof(hb_cfg.action_id));
-		LOG_DBG("<%s> = %d", "hawkbit/action_id", hb_cfg.action_id);
+		LOG_DBG("<%s> = %u", "hawkbit/action_id", hb_cfg.action_id);
 		if (rc >= 0) {
 			return 0;
 		}
@@ -496,7 +496,7 @@ static const char *hawkbit_status_execution(enum hawkbit_status_exec e)
 	}
 }
 
-static int hawkbit_device_acid_update(int32_t new_value)
+static int hawkbit_device_acid_update(uint32_t new_value)
 {
 	int ret;
 	hb_cfg.action_id = new_value;
@@ -522,7 +522,7 @@ int hawkbit_reset_action_id(void)
 	return -EAGAIN;
 }
 
-int32_t hawkbit_get_action_id(void)
+uint32_t hawkbit_get_action_id(void)
 {
 	return hb_cfg.action_id;
 }
@@ -571,7 +571,8 @@ static char *hawkbit_get_url(const char *href)
 /*
  * Find URL component for the device cancel action id
  */
-static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res, int32_t *cancel_action_id)
+static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res,
+					 uint32_t *cancel_action_id)
 {
 	char *helper;
 
@@ -585,7 +586,7 @@ static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res, int32_t *c
 	helper += sizeof("cancelAction/") - 1;
 
 	*cancel_action_id = strtol(helper, NULL, 10);
-	if (*cancel_action_id <= 0) {
+	if (*cancel_action_id == 0) {
 		LOG_ERR("Invalid action_id: %d", *cancel_action_id);
 		return -EINVAL;
 	}
@@ -593,12 +594,12 @@ static int hawkbit_find_cancel_action_id(struct hawkbit_ctl_res *res, int32_t *c
 	return 0;
 }
 
-static int hawkbit_deployment_get_action_id(struct hawkbit_dep_res *res, int32_t *action_id)
+static int hawkbit_deployment_get_action_id(struct hawkbit_dep_res *res, uint32_t *action_id)
 {
-	int32_t id;
+	uint32_t id;
 
 	id = strtol(res->id, NULL, 10);
-	if (id <= 0) {
+	if (id == 0) {
 		LOG_ERR("Invalid action_id: %d", id);
 		return -EINVAL;
 	}
@@ -798,7 +799,7 @@ int hawkbit_init(void)
 		return ret;
 	}
 
-	LOG_DBG("Current action_id: %d", hb_cfg.action_id);
+	LOG_DBG("Current action_id: %u", hb_cfg.action_id);
 
 	image_ok = boot_is_img_confirmed();
 	LOG_INF("Current image is%s confirmed", image_ok ? "" : " not");
@@ -1263,7 +1264,7 @@ static enum smf_state_result s_probe(void *o)
 static enum smf_state_result s_cancel(void *o)
 {
 	ssize_t ret = 0;
-	int32_t cancel_action_id = 0;
+	uint32_t cancel_action_id = 0;
 	struct s_object *s = (struct s_object *)o;
 	char *cancel_base;
 	uint8_t status_buffer[CONFIG_HAWKBIT_STATUS_BUFFER_SIZE] = {0};
@@ -1417,7 +1418,7 @@ static enum smf_state_result s_report(void *o)
 	uint8_t status_buffer[CONFIG_HAWKBIT_STATUS_BUFFER_SIZE] = {0};
 	char url_buffer[URL_BUFFER_SIZE] = {0};
 
-	snprintk(url_buffer, sizeof(url_buffer), "%s/%s/%s/%d/%s", HAWKBIT_JSON_URL,
+	snprintk(url_buffer, sizeof(url_buffer), "%s/%s/%s/%u/%s", HAWKBIT_JSON_URL,
 		 s->device_id, "deploymentBase", s->hb_context.json_action_id, "feedback");
 
 	LOG_INF("Reporting deployment feedback %s (%s) for action %d",
