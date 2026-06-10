@@ -702,6 +702,10 @@ struct gpio_driver_config {
 	 * instance generation in the driver.
 	 */
 	gpio_port_pins_t port_pin_mask;
+#ifdef CONFIG_GPIO_HOGS
+	/** List of GPIO hogs to be configured at initialization. */
+	struct gpio_hogs gpio_hogs;
+#endif /* CONFIG_GPIO_HOGS */
 };
 
 /**

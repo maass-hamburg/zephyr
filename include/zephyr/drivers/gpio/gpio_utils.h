@@ -24,6 +24,7 @@
 
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/gpio/gpio_hogs.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/slist.h>
 #include <zephyr/tracing/tracing.h>
@@ -73,6 +74,7 @@ extern "C" {
 #define GPIO_COMMON_CONFIG_FROM_DT_NODE(node_id)                           \
 	{                                                                  \
 		.port_pin_mask = GPIO_PORT_PIN_MASK_FROM_DT_NODE(node_id), \
+		GPIO_HOGS_COND_INIT_GPIO_CTLR(node_id)                     \
 	}
 
 /**
@@ -140,6 +142,26 @@ static inline void gpio_fire_callbacks(sys_slist_t *list,
 			sys_port_trace_gpio_fire_callback(port, cb);
 		}
 	}
+}
+
+/**
+ * @brief Common GPIO initialization function
+ *
+ * This function is intended to be called by GPIO drivers at the end of their
+ * initialization function. It performs common initialization tasks, such as
+ * initializing GPIO hogs if enabled.
+ *
+ * @param dev Pointer to the GPIO device being initialized.
+ * @return 0 on success, negative errno otherwise.
+ */
+static inline int gpio_common_init(const struct device *dev)
+{
+#ifdef CONFIG_GPIO_HOGS
+	return gpio_hogs_init(dev);
+#else
+	ARG_UNUSED(dev);
+	return 0;
+#endif
 }
 
 #ifdef __cplusplus
