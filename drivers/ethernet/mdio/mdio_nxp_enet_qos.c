@@ -10,8 +10,9 @@
 #include <zephyr/drivers/mdio.h>
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/pinctrl.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet_qos.h>
 #include <zephyr/sys/util.h>
+
+#include "../eth_nxp_enet_qos/eth_nxp_enet_qos.h"
 
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(mdio_nxp_enet_qos, CONFIG_MDIO_LOG_LEVEL);

@@ -14,7 +14,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/pinctrl.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet.h>
+#include "../ethernet/eth_nxp_enet.h"
 
 #include <fsl_enet.h>
 

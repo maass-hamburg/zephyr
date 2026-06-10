@@ -8,7 +8,7 @@
 #define DT_DRV_COMPAT nxp_enet_qos
 
 #include <zephyr/drivers/pinctrl.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet_qos.h>
+#include "eth_nxp_enet_qos.h"
 
 int nxp_enet_qos_init(const struct device *dev)
 {

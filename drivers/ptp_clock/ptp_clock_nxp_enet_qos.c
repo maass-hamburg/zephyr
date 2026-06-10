@@ -24,7 +24,7 @@
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/clock_control.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet_qos.h>
+#include "../ethernet/eth_nxp_enet_qos/eth_nxp_enet_qos.h"
 #include <zephyr/logging/log.h>
 
 LOG_MODULE_REGISTER(ptp_clock_nxp_enet_qos);

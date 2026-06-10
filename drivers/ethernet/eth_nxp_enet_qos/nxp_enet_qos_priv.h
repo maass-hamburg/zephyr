@@ -10,7 +10,7 @@
 #include <zephyr/sys/atomic.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/net/ethernet.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet_qos.h>
+#include "eth_nxp_enet_qos.h"
 
 /* shorthands */
 #define NUM_TX_BUFDESC CONFIG_ETH_NXP_ENET_QOS_TX_BUFFER_DESCRIPTORS

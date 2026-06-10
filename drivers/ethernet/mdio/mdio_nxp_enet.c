@@ -10,10 +10,11 @@
 #include <zephyr/device.h>
 #include <zephyr/net/mdio.h>
 #include <zephyr/drivers/mdio.h>
-#include <zephyr/drivers/ethernet/eth_nxp_enet.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/sys_clock.h>
+
+#include "../eth_nxp_enet.h"
 
 struct nxp_enet_mdio_config {
 	const struct pinctrl_dev_config *pincfg;
