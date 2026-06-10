@@ -11,6 +11,10 @@ include: [gpio-controller.yaml, base.yaml]
 
 compatible: "richtek,rt1718s-gpio-port"
 
+properties:
+  ngpios:
+    default: 3
+
 examples:
   - |
     &i2c2_0 {
