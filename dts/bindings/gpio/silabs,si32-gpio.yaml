@@ -18,6 +18,9 @@ properties:
   disable-pullups:
     type: boolean
 
+  ngpios:
+    default: 16
+
 gpio-cells:
   - pin
   - flags
