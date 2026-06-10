@@ -16,6 +16,9 @@ properties:
     required: true
     description: index of gpio device
 
+  ngpios:
+    default: 8
+
   wui-maps:
     type: phandles
     required: true
