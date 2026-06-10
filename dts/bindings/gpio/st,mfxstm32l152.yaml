@@ -17,6 +17,9 @@ properties:
   "#gpio-cells":
     const: 2
 
+  ngpios:
+    default: 12
+
 gpio-cells:
   - pin
   - flags
