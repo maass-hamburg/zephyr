@@ -11,6 +11,9 @@ properties:
   reg:
     required: true
 
+  ngpios:
+    default: 16
+
   port:
     type: int
     required: true
