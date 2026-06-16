@@ -118,6 +118,23 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 	d = &p->tx_descs[p->tx_desc_head];
 	d->des0 = TDES0_OWN | TDES0_FS | TDES0_TCH | TDES0_IC;
 
+	if (IS_ENABLED(CONFIG_ETH_DWC_DESCS_INCOHERENT)) {
+		/* make sure all the above made it to memory before updating the head */
+		if (d_idx > p->tx_desc_head) {
+			sys_cache_data_flush_and_invd_range(&p->tx_descs[p->tx_desc_head],
+							    (d_idx - p->tx_desc_head) *
+								    sizeof(struct dwmac_dma_desc));
+		} else {
+			sys_cache_data_flush_and_invd_range(&p->tx_descs[p->tx_desc_head],
+							    (NB_TX_DESCS - p->tx_desc_head) *
+								    sizeof(struct dwmac_dma_desc));
+			if (d_idx > 0) {
+				sys_cache_data_flush_and_invd_range(
+					&p->tx_descs[0], d_idx * sizeof(struct dwmac_dma_desc));
+			}
+		}
+	}
+
 	barrier_dmem_fence_full();
 	p->tx_desc_head = d_idx;
 	REG_WRITE(DWMAC_DMATPDR, 0);
@@ -142,6 +159,11 @@ static void dwmac_tx_release(const struct device *dev)
 	struct dwmac_dma_desc *d;
 	struct net_buf *frag;
 	uint32_t des0;
+
+	if (IS_ENABLED(CONFIG_ETH_DWC_DESCS_INCOHERENT)) {
+		sys_cache_data_flush_and_invd_range(&p->tx_descs[0],
+						    NB_TX_DESCS * sizeof(struct dwmac_dma_desc));
+	}
 
 	for (d_idx = p->tx_desc_tail; d_idx != p->tx_desc_head; INC_WRAP(d_idx, NB_TX_DESCS)) {
 		d = &p->tx_descs[d_idx];
@@ -175,6 +197,11 @@ static void dwmac_receive(const struct device *dev)
 	uint16_t bytes_so_far;
 	struct net_pkt *rx_pkt = NULL;
 	uint16_t rx_bytes = 0;
+
+	if (IS_ENABLED(CONFIG_ETH_DWC_DESCS_INCOHERENT)) {
+		sys_cache_data_flush_and_invd_range(&p->rx_descs[0],
+						    NB_RX_DESCS * sizeof(struct dwmac_dma_desc));
+	}
 
 	for (d_idx = p->rx_desc_tail; d_idx != p->rx_desc_head;
 	     INC_WRAP(d_idx, NB_RX_DESCS), k_sem_give(&p->free_rx_descs)) {
@@ -260,6 +287,10 @@ static void dwmac_rx_refill(const struct device *dev, unsigned int d_idx)
 	barrier_dmem_fence_full();
 
 	d->des0 = RDES0_OWN;
+
+	if (IS_ENABLED(CONFIG_ETH_DWC_DESCS_INCOHERENT)) {
+		sys_cache_data_flush_range(d, sizeof(struct dwmac_dma_desc));
+	}
 
 	p->rx_desc_head = INC_WRAP(d_idx, NB_RX_DESCS);
 	REG_WRITE(DWMAC_DMARPDR, 0);

@@ -73,6 +73,12 @@ config ETH_DWMAC_MMU
 
 if ETH_DWC_ETHER_QOS_CORE || ETH_DWC_ETHER_1000_CORE
 
+config ETH_DWC_DESCS_INCOHERENT
+	bool
+	help
+	  Select this if the descriptors are in a cached area and
+	  cache management functions have to be used.
+
 config DWMAC_NB_TX_DESCS
 	int "Number of entries in the transmit descriptor ring"
 	default 16
