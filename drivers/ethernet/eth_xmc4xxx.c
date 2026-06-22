@@ -99,7 +99,6 @@ struct eth_xmc4xxx_data {
 	struct net_if *iface;
 	uint8_t mac_addr[6];
 	struct k_sem tx_desc_sem;
-	bool link_up;
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	struct net_stats_eth stats;
 #endif
@@ -841,16 +840,12 @@ static void phy_link_state_changed(const struct device *phy_dev, struct phy_link
 	struct device *dev = user_data;
 	struct eth_xmc4xxx_data *dev_data = dev->data;
 	const struct eth_xmc4xxx_config *dev_cfg = dev->config;
-	bool is_up = state->is_up;
 
-	if (is_up && !dev_data->link_up) {
-		dev_data->link_up = true;
-		net_eth_carrier_on(dev_data->iface);
+	if (state->is_up) {
 		eth_xmc4xxx_set_link(dev_cfg->regs, state);
-	} else if (!is_up && dev_data->link_up) {
-		dev_data->link_up = false;
-		net_eth_carrier_off(dev_data->iface);
 	}
+
+	net_eth_carrier_set(dev_data->iface, state->is_up);
 }
 
 static const struct device *eth_xmc4xxx_get_phy(const struct device *dev,

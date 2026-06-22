@@ -234,13 +234,13 @@ static void phy_link_state_changed(const struct device *pdev, struct phy_link_st
 		ctx->ctrl.link_change = ETHER_LINK_CHANGE_LINK_UP;
 		ctx->ctrl.previous_link_status = ETHER_PREVIOUS_LINK_STATUS_UP;
 		ctx->ctrl.link_establish_status = ETHER_LINK_ESTABLISH_STATUS_UP;
-		net_eth_carrier_on(ctx->iface);
 	} else {
 		ctx->ctrl.link_change = ETHER_LINK_CHANGE_LINK_DOWN;
 		ctx->ctrl.previous_link_status = ETHER_PREVIOUS_LINK_STATUS_DOWN;
 		ctx->ctrl.link_establish_status = ETHER_LINK_ESTABLISH_STATUS_DOWN;
-		net_eth_carrier_off(ctx->iface);
 	}
+
+	net_eth_carrier_set(ctx->iface, state->is_up);
 }
 
 static void renesas_ra_eth_initialize(struct net_if *iface)

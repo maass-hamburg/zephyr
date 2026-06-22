@@ -266,18 +266,14 @@ static void phy_link_state_changed(const struct device *pdev, struct phy_link_st
 			en |= BIT(SY1XX_MAC_CTRL_TX_EN_OFFS) | BIT(SY1XX_MAC_CTRL_RX_EN_OFFS);
 			sys_write32(en, cfg->ctrl_addr + SY1XX_MAC_CTRL_REG);
 
-			/* Announce link up status */
-			net_eth_carrier_on(data->iface);
-
 		} else {
 			/* disable mac controller */
 			en = sys_read32(cfg->ctrl_addr + SY1XX_MAC_CTRL_REG);
 			en &= ~(BIT(SY1XX_MAC_CTRL_TX_EN_OFFS) | BIT(SY1XX_MAC_CTRL_RX_EN_OFFS));
 			sys_write32(en, cfg->ctrl_addr + SY1XX_MAC_CTRL_REG);
-
-			/* Announce link down status */
-			net_eth_carrier_off(data->iface);
 		}
+
+		net_eth_carrier_set(data->iface, is_up);
 	}
 }
 

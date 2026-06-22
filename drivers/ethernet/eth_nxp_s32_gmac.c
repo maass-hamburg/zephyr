@@ -116,11 +116,9 @@ static void phy_link_state_changed(const struct device *pdev,
 		Gmac_Ip_SetSpeed(cfg->instance, gmac_cfg.Speed);
 
 		cfg->base->MAC_CONFIGURATION |= GMAC_MAC_CONFIGURATION_DM(gmac_cfg.Duplex);
-
-		net_eth_carrier_on(ctx->iface);
-	} else {
-		net_eth_carrier_off(ctx->iface);
 	}
+
+	net_eth_carrier_set(ctx->iface, state->is_up);
 }
 
 static const struct device *eth_nxp_s32_get_phy(const struct device *dev,

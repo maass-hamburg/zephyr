@@ -68,10 +68,9 @@ static void phy_link_state_changed(const struct device *pdev,
 
 	if (state->is_up) {
 		nxp_s32_eth_configure_port(cfg->port_idx, state->speed);
-		net_eth_carrier_on(ctx->iface);
-	} else {
-		net_eth_carrier_off(ctx->iface);
 	}
+
+	net_eth_carrier_set(ctx->iface, state->is_up);
 }
 
 static const struct device *nxp_s32_eth_get_phy(const struct device *dev,

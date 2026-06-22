@@ -471,15 +471,16 @@ static void enc424j600_rx_thread(void *p1, void *p2, void *p3)
 				LOG_DBG("ESTAT: 0x%04x", estat);
 			}
 		} else if (eir & ENC424J600_EIR_LINKIF) {
-			enc424j600_clear_sfru(context->dev,
-					      ENC424J600_SFRX_EIRL,
+			bool link_up = (estat & ENC424J600_ESTAT_PHYLNK) != 0U;
+
+			enc424j600_clear_sfru(context->dev, ENC424J600_SFRX_EIRL,
 					      ENC424J600_EIR_LINKIF);
-			if (estat & ENC424J600_ESTAT_PHYLNK) {
+
+			if (link_up) {
 				enc424j600_setup_mac(context->dev);
-				net_eth_carrier_on(context->iface);
-			} else {
-				net_eth_carrier_off(context->iface);
 			}
+
+			net_eth_carrier_set(context->iface, link_up);
 		} else {
 			LOG_ERR("Unknown Interrupt, EIR: 0x%04x", eir);
 			/*

@@ -1663,22 +1663,13 @@ static void phy_link_state_changed(const struct device *pdev,
 {
 	const struct device *dev = (const struct device *) user_data;
 	struct eth_sam_dev_data *const dev_data = dev->data;
-	bool is_up;
 
-	is_up = state->is_up;
-
-	if (is_up && !dev_data->link_up) {
-		/* Announce link up status */
-		dev_data->link_up = true;
-		net_eth_carrier_on(dev_data->iface);
-
+	if (state->is_up) {
 		/* Set up link */
 		link_configure((Gmac *)DEVICE_MMIO_GET(dev), state->speed);
-	} else if (!is_up && dev_data->link_up) {
-		/* Announce link down status */
-		dev_data->link_up = false;
-		net_eth_carrier_off(dev_data->iface);
 	}
+
+	net_eth_carrier_set(dev_data->iface, state->is_up);
 }
 
 static const struct device *eth_sam_gmac_get_phy(const struct device *dev,
