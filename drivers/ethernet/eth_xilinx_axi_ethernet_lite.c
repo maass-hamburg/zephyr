@@ -206,9 +206,6 @@ static void axi_eth_lite_iface_init(struct net_if *iface)
 		if (err < 0) {
 			LOG_ERR("Could not set PHY link state changed handler: %d", err);
 		}
-	} else {
-		/* fixed link - no way to know so assume it is on */
-		net_eth_carrier_on(iface);
 	}
 
 	if (CONFIG_ETH_XILINX_AXI_ETHERNET_LITE_TIMER_PERIOD > 0) {

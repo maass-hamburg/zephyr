@@ -111,7 +111,6 @@ static void lan865x_iface_init(struct net_if *iface)
 
 	ethernet_init(iface);
 
-	net_eth_carrier_on(iface);
 	ctx->iface_initialized = true;
 }
 

@@ -49,9 +49,6 @@ static void nxp_s32_eth_iface_init(struct net_if *iface)
 
 	ethernet_init(iface);
 
-	/* Assumes PSI is already started and link is up, iface will auto-start after init */
-	net_eth_carrier_on(iface);
-
 	for (int i = 0; i < NETC_MSIX_EVENTS_COUNT; i++) {
 		msix = &cfg->msix[i];
 		if (mbox_is_ready_dt(&msix->mbox_spec)) {
