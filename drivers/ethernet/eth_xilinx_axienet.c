@@ -475,7 +475,7 @@ static void xilinx_axienet_iface_init(struct net_if *iface)
 	net_if_set_link_addr(iface, data->mac_addr, sizeof(data->mac_addr), NET_LINK_ETHERNET);
 
 	/* carrier is initially off */
-	net_eth_carrier_off(iface);
+	net_if_carrier_off(iface);
 
 	err = phy_link_callback_set(config->phy, phy_link_state_changed, iface);
 

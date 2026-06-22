@@ -198,7 +198,7 @@ static void axi_eth_lite_iface_init(struct net_if *iface)
 
 	if (device_is_ready(config->phy)) {
 		/* initially no carrier */
-		net_eth_carrier_off(iface);
+		net_if_carrier_off(iface);
 
 		err = phy_link_callback_set(config->phy, axi_eth_lite_phy_link_state_changed,
 					    iface);
