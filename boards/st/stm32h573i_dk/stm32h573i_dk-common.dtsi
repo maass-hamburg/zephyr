@@ -273,6 +273,11 @@
 	pinctrl-names = "default";
 	phy-connection-type = "rmii";
 	phy-handle = <&eth_phy>;
+
+	ptp_clock {
+		compatible = "snps,dwmac-ptp-clock";
+		status = "okay";
+	};
 };
 
 &mdio {

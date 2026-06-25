@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: Apache-2.0
+
+config PTP_CLOCK_DWMAC
+	bool "Synopsys DesignWare MAC PTP Clock driver"
+	default y
+	depends on DT_HAS_SNPS_DWMAC_PTP_CLOCK_ENABLED && NET_L2_PTP
+	depends on ETH_DWMAC
+	help
+	  Enable Synopsys DesignWare MAC PTP clock support.
+	  
+	  This driver provides PTP (Precision Time Protocol) clock support
+	  for Synopsys DesignWare MAC controllers. It enables timestamp
+	  capabilities for precision time synchronization.

@@ -181,6 +181,14 @@ static int dwmac_send(const struct device *dev, struct net_pkt *pkt)
 		if (!frag->frags) {
 			/* set those flags on the last descriptor */
 			des2_flags |= TDES2_IOC;
+
+#if defined(CONFIG_PTP_CLOCK_DWMAC)
+			if (net_ntohs(NET_ETH_HDR(pkt)->type) == NET_ETH_PTYPE_PTP ||
+			    net_pkt_is_tx_timestamping(pkt)) {
+				des2_flags |= TDES2_TTSE;
+			}
+#endif /* CONFIG_PTP_CLOCK_DWMAC */
+
 			des3_flags |= TDES3_LD;
 		}
 
@@ -276,13 +284,34 @@ static void dwmac_receive(struct dwmac_priv *p)
 		des3_val = d->des3;
 		LOG_DBG("RDES3[%d] = 0x%08x", d_idx, des3_val);
 
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+		if (p->rx_pkt_ready && !(des3_val & RDES3_CTXT)) {
+			net_recv_data(p->iface, p->rx_pkt_ready);
+			p->rx_pkt_ready = NULL;
+		}
+#endif
+
 		/* stop here if hardware still owns it */
 		if (des3_val & RDES3_OWN) {
 			break;
 		}
 
-		/* we ignore those for now */
 		if (des3_val & RDES3_CTXT) {
+
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+			if (p->rx_pkt_ready) {
+				struct net_ptp_time timestamp = {
+					.second = d->des1,
+					.nanosecond = d->des0 & GENMASK(30, 0),
+				};
+
+				p->rx_pkt_ready->timestamp.second = timestamp.second;
+				p->rx_pkt_ready->timestamp.nanosecond = timestamp.nanosecond;
+				net_pkt_set_rx_timestamping(p->rx_pkt_ready, true);
+				net_recv_data(p->iface, p->rx_pkt_ready);
+				p->rx_pkt_ready = NULL;
+			}
+#endif
 			continue;
 		}
 
@@ -321,7 +350,12 @@ static void dwmac_receive(struct dwmac_priv *p)
 				LOG_DBG("pkt len/frags=%zd/%d",
 					net_pkt_get_len(p->rx_pkt),
 					net_pkt_get_nbfrags(p->rx_pkt));
+
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+				p->rx_pkt_ready = p->rx_pkt;
+#else
 				net_recv_data(p->iface, p->rx_pkt);
+#endif
 			} else {
 				LOG_ERR("rx error (DES3 = 0x%08x)", des3_val);
 				eth_stats_update_errors_rx(p->iface);
@@ -330,6 +364,14 @@ static void dwmac_receive(struct dwmac_priv *p)
 			p->rx_pkt = NULL;
 		}
 	}
+
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+	if (p->rx_pkt_ready) {
+		net_recv_data(p->iface, p->rx_pkt_ready);
+		p->rx_pkt_ready = NULL;
+	}
+#endif
+
 	p->rx_desc_tail = d_idx;
 }
 
@@ -713,6 +755,16 @@ static struct net_stats_eth *dwmac_stats(const struct device *dev, struct net_if
 }
 #endif
 
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+static const struct device *dwmac_get_ptp_clock(const struct device *dev,
+						 struct net_if *iface __unused)
+{
+	const struct dwmac_config *cfg = dev->config;
+
+	return cfg->ptp_clock;
+}
+#endif /* CONFIG_PTP_CLOCK_DWMAC */
+
 const struct ethernet_api dwmac_api = {
 	.iface_api.init		= dwmac_iface_init,
 	.get_capabilities	= dwmac_caps,
@@ -722,4 +774,7 @@ const struct ethernet_api dwmac_api = {
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	.get_stats		= dwmac_stats,
 #endif
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+	.get_ptp_clock		= dwmac_get_ptp_clock,
+#endif /* CONFIG_PTP_CLOCK_DWMAC */
 };

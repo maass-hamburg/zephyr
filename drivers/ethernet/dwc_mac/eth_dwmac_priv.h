@@ -100,6 +100,7 @@ struct dwmac_config {
 	const struct device *phy_dev;
 	const struct device *clock;
 	const clock_control_subsys_t mac_clk;
+	const struct device *ptp_clock;	/* PTP clock device */
 };
 
 struct dwmac_priv {
@@ -134,6 +135,10 @@ struct dwmac_priv {
 	uint16_t rx_bytes;
 
 	struct k_fifo tx_queue;
+
+#ifdef CONFIG_PTP_CLOCK_DWMAC
+	struct net_pkt *rx_pkt_ready;
+#endif
 
 	K_KERNEL_STACK_MEMBER(rx_refill_thread_stack, RX_REFILL_STACK_SIZE);
 	struct k_thread rx_refill_thread;
