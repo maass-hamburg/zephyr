@@ -348,7 +348,7 @@ void wiznet_iface_init(struct net_if *iface)
 enum ethernet_hw_caps wiznet_get_capabilities(const struct device *dev __unused,
 					      struct net_if *iface __unused)
 {
-	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE
+	return 0
 #if defined(CONFIG_NET_PROMISCUOUS_MODE)
 	       | ETHERNET_PROMISC_MODE
 #endif

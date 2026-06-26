@@ -598,7 +598,7 @@ static void tx_dma_done(const struct device *dev)
 static enum ethernet_hw_caps eth_nxp_enet_qos_get_capabilities(const struct device *dev __unused,
 							      struct net_if *iface __unused)
 {
-	enum ethernet_hw_caps caps = ETHERNET_LINK_100BASE | ETHERNET_LINK_10BASE;
+	enum ethernet_hw_caps caps = 0;
 
 #if defined(CONFIG_NET_CHECKSUM_OFFLOAD)
 	caps |= ETHERNET_HW_TX_CHKSUM_OFFLOAD | ETHERNET_HW_RX_CHKSUM_OFFLOAD;

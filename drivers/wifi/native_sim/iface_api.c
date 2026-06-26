@@ -428,17 +428,6 @@ struct net_stats_eth *wifi_if_stats_get(const struct device *dev, struct net_if 
 }
 #endif
 
-enum ethernet_hw_caps wifi_if_caps_get(const struct device *dev, struct net_if *iface)
-{
-	enum ethernet_hw_caps caps = (ETHERNET_LINK_10BASE |
-			ETHERNET_LINK_100BASE | ETHERNET_LINK_1000BASE);
-
-	ARG_UNUSED(dev);
-	ARG_UNUSED(iface);
-
-	return caps;
-}
-
 int wifi_if_send(const struct device *dev, struct net_pkt *pkt)
 {
 	struct wifi_context *ctx = dev->data;

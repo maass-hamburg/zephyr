@@ -992,7 +992,7 @@ static struct net_stats_eth *eth_mchp_get_stats(const struct device *dev,
 static enum ethernet_hw_caps eth_mchp_get_capabilities(const struct device *dev __unused,
 						       struct net_if *iface __unused)
 {
-	enum ethernet_hw_caps hw_caps = ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE;
+	enum ethernet_hw_caps hw_caps = 0;
 
 #if defined(CONFIG_NET_VLAN)
 	hw_caps |= ETHERNET_HW_VLAN;

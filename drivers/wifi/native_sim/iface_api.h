@@ -19,7 +19,6 @@ int wifi_if_set_config(const struct device *dev,
 #ifdef CONFIG_NET_STATISTICS_ETHERNET
 struct net_stats_eth *wifi_if_stats_get(const struct device *dev, struct net_if *iface);
 #endif
-enum ethernet_hw_caps wifi_if_caps_get(const struct device *dev, struct net_if *iface);
 int wifi_if_send(const struct device *dev, struct net_pkt *pkt);
 
 #endif /* ZEPHYR_DRIVERS_WIFI_NATIVE_SIM_IFACE_API_H_ */

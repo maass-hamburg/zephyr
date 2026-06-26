@@ -195,7 +195,7 @@ static enum ethernet_hw_caps fake_get_capabilities(const struct device *dev, str
 {
 	ARG_UNUSED(iface);
 
-	return ETHERNET_PROMISC_MODE | ETHERNET_LINK_100BASE |
+	return ETHERNET_PROMISC_MODE |
 	       (fake_of(dev)->hw_forwarding ? ETHERNET_HW_PORT_FORWARDING : 0) |
 	       (fake_of(dev)->hw_stp ? ETHERNET_HW_STP_PORT_STATE : 0);
 }

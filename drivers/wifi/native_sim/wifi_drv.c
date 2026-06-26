@@ -71,7 +71,6 @@ static const struct net_wifi_mgmt_offload wifi_if_api = {
 	.wifi_iface.start = wifi_if_start,
 	.wifi_iface.stop = wifi_if_stop,
 	.wifi_iface.set_config = wifi_if_set_config,
-	.wifi_iface.get_capabilities = wifi_if_caps_get,
 	.wifi_iface.send = wifi_if_send,
 #ifdef CONFIG_NET_STATISTICS_ETHERNET
 	.wifi_iface.get_stats = wifi_if_stats_get,

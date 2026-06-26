@@ -447,12 +447,6 @@ static uint32_t eth_esp32_receive_frame(struct eth_esp32_dev_data *dev_data, uin
 	return copy_len;
 }
 
-static enum ethernet_hw_caps eth_esp32_caps(const struct device *dev __unused,
-					    struct net_if *iface __unused)
-{
-	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE;
-}
-
 static int eth_esp32_set_config(const struct device *dev,
 				struct net_if *iface __unused,
 				enum ethernet_config_type type,
@@ -828,7 +822,6 @@ static const struct device *eth_esp32_get_ptp_clock(const struct device *dev,
 
 static const struct ethernet_api eth_esp32_api = {
 	.iface_api.init		= eth_esp32_iface_init,
-	.get_capabilities	= eth_esp32_caps,
 	.set_config		= eth_esp32_set_config,
 	.get_phy		= eth_esp32_phy_get,
 	.send			= eth_esp32_send,

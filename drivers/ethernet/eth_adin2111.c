@@ -1225,8 +1225,7 @@ static enum ethernet_hw_caps adin2111_port_get_capabilities(const struct device 
 	const struct adin2111_config *adin_cfg = cfg->adin->config;
 	enum ethernet_hw_caps caps;
 
-	caps = ETHERNET_LINK_10BASE |
-		ETHERNET_HW_FILTERING
+	caps = ETHERNET_HW_FILTERING
 #if defined(CONFIG_NET_LLDP)
 		| ETHERNET_LLDP
 #endif

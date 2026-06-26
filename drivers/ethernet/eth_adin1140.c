@@ -310,7 +310,7 @@ static enum ethernet_hw_caps adin1140_get_capabilities(const struct device *dev,
 {
 	ARG_UNUSED(dev);
 	ARG_UNUSED(iface);
-	return (ETHERNET_LINK_10BASE | ETHERNET_PROMISC_MODE | ETHERNET_HW_FILTERING);
+	return (ETHERNET_PROMISC_MODE | ETHERNET_HW_FILTERING);
 }
 
 /**

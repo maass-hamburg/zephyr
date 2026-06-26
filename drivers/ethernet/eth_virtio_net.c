@@ -126,13 +126,6 @@ static uint16_t virtnet_enum_queues_cb(uint16_t q_index, uint16_t q_size_max, vo
 	}
 }
 
-static enum ethernet_hw_caps virtnet_get_capabilities(const struct device *dev __unused,
-						     struct net_if *iface __unused)
-{
-	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE | ETHERNET_LINK_1000BASE |
-	       ETHERNET_LINK_2500BASE | ETHERNET_LINK_5000BASE;
-}
-
 static int virtnet_send(const struct device *dev, struct net_pkt *pkt)
 {
 	const struct virtnet_config *config = dev->config;
@@ -234,7 +227,6 @@ static int virtnet_dev_init(const struct device *dev)
 
 static const struct ethernet_api virtnet_api = {
 	.iface_api.init = virtnet_if_init,
-	.get_capabilities = virtnet_get_capabilities,
 	.send = virtnet_send,
 };
 

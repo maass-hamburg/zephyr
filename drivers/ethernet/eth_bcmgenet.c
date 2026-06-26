@@ -397,12 +397,6 @@ static int bcmgenet_set_config(const struct device *dev, struct net_if *iface __
 	}
 }
 
-static enum ethernet_hw_caps bcmgenet_get_caps(const struct device *dev __unused,
-					       struct net_if *iface __unused)
-{
-	return ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE | ETHERNET_LINK_1000BASE;
-}
-
 static const struct device *bcmgenet_get_phy(const struct device *dev,
 					     struct net_if *iface __unused)
 {
@@ -483,7 +477,6 @@ static void bcmgenet_iface_init(struct net_if *iface)
 static const struct ethernet_api bcmgenet_api = {
 	.iface_api.init = bcmgenet_iface_init,
 	.get_phy = bcmgenet_get_phy,
-	.get_capabilities = bcmgenet_get_caps,
 	.set_config = bcmgenet_set_config,
 	.start = bcmgenet_start,
 	.stop = bcmgenet_stop,
