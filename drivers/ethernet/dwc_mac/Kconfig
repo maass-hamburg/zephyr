@@ -95,6 +95,7 @@ configdefault NET_BUF_ALIGNMENT
 
 config DWMAC_NB_TX_DESCS
 	int "Number of entries in the transmit descriptor ring"
+	default 32 if SOC_SERIES_ESP32P4
 	default 16
 	range 4 128
 	help
@@ -108,6 +109,7 @@ config DWMAC_NB_TX_DESCS
 
 config DWMAC_NB_RX_DESCS
 	int "Number of entries in the receive descriptor ring"
+	default 32 if SOC_SERIES_ESP32P4
 	default 16
 	range 4 128
 	help
