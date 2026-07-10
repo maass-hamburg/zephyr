@@ -83,6 +83,8 @@ static void option_handler(struct net_dhcpv4_option_callback *cb,
 		net_addr_ntop(NET_AF_INET, cb->data, buf, sizeof(buf)));
 }
 
+static uint8_t my_var[200] __nocache;
+
 int main(void)
 {
 	LOG_INF("Run dhcpv4 client");
@@ -98,5 +100,100 @@ int main(void)
 	net_dhcpv4_add_option_callback(&dhcp_cb);
 
 	net_if_foreach(start_dhcpv4_client, NULL);
+
+#define CSR_PMACFG0  0xBC0
+#define CSR_PMAADDR0 0xBD0
+
+#define CSR_PMACFG(i)  (CSR_PMACFG0 + (i))
+#define CSR_PMAADDR(i) (CSR_PMAADDR0 + (i))
+
+#define CSR_PMACFG_A GENMASK(31, 30)
+
+#define PMA_EN BIT(0)
+#define PMA_R  BIT(4)
+#define PMA_W  BIT(3)
+#define PMA_X  BIT(2)
+#define PMA_L  BIT(29)
+
+#define PMA_NONCACHEABLE     BIT(27)
+#define PMA_WRITETHROUGH     BIT(26)
+#define PMA_WRITEMISSNOALLOC BIT(25)
+#define PMA_READMISSNOALLOC  BIT(24)
+
+	uint32_t pma_cfg[16];
+	uint32_t pma_addr[16];
+
+	pma_addr[0] = csr_read(CSR_PMAADDR(0));
+	pma_addr[1] = csr_read(CSR_PMAADDR(1));
+	pma_addr[2] = csr_read(CSR_PMAADDR(2));
+	pma_addr[3] = csr_read(CSR_PMAADDR(3));
+	pma_addr[4] = csr_read(CSR_PMAADDR(4));
+	pma_addr[5] = csr_read(CSR_PMAADDR(5));
+	pma_addr[6] = csr_read(CSR_PMAADDR(6));
+	pma_addr[7] = csr_read(CSR_PMAADDR(7));
+	pma_addr[8] = csr_read(CSR_PMAADDR(8));
+	pma_addr[9] = csr_read(CSR_PMAADDR(9));
+	pma_addr[10] = csr_read(CSR_PMAADDR(10));
+	pma_addr[11] = csr_read(CSR_PMAADDR(11));
+	pma_addr[12] = csr_read(CSR_PMAADDR(12));
+	pma_addr[13] = csr_read(CSR_PMAADDR(13));
+	pma_addr[14] = csr_read(CSR_PMAADDR(14));
+	pma_addr[15] = csr_read(CSR_PMAADDR(15));
+	pma_cfg[0] = csr_read(CSR_PMACFG(0));
+	pma_cfg[1] = csr_read(CSR_PMACFG(1));
+	pma_cfg[2] = csr_read(CSR_PMACFG(2));
+	pma_cfg[3] = csr_read(CSR_PMACFG(3));
+	pma_cfg[4] = csr_read(CSR_PMACFG(4));
+	pma_cfg[5] = csr_read(CSR_PMACFG(5));
+	pma_cfg[6] = csr_read(CSR_PMACFG(6));
+	pma_cfg[7] = csr_read(CSR_PMACFG(7));
+	pma_cfg[8] = csr_read(CSR_PMACFG(8));
+	pma_cfg[9] = csr_read(CSR_PMACFG(9));
+	pma_cfg[10] = csr_read(CSR_PMACFG(10));
+	pma_cfg[11] = csr_read(CSR_PMACFG(11));
+	pma_cfg[12] = csr_read(CSR_PMACFG(12));
+	pma_cfg[13] = csr_read(CSR_PMACFG(13));
+	pma_cfg[14] = csr_read(CSR_PMACFG(14));
+	pma_cfg[15] = csr_read(CSR_PMACFG(15));
+
+	for (uint32_t i = 0; i < 16; i++) {
+		LOG_INF("PMA[%u]: CFG=0x%08x, ADDR=0x%08x", i, pma_cfg[i], pma_addr[i]);
+		switch (FIELD_GET(CSR_PMACFG_A, pma_cfg[i])) {
+		case 0x0:
+			LOG_INF("  Type: OFF");
+			break;
+		case 0x1:
+			LOG_INF("  Type: TOR");
+			LOG_INF("  TOR: start=0x%08x, end=0x%08x", (i == 0 ? 0 : (pma_addr[i - 1] << 2)), (pma_addr[i] << 2));
+			break;
+		case 0x2:
+			LOG_INF("  Type: NA4");
+			break;
+		case 0x3:
+			LOG_INF("  Type: NAPOT");
+			break;
+		default:
+			LOG_INF("  Type: UNKNOWN");
+			break;
+		}
+
+		LOG_INF("  PMA: EN=%d, R=%d, W=%d, X=%d, L=%d", (pma_cfg[i] & PMA_EN) != 0,
+			(pma_cfg[i] & PMA_R) != 0, (pma_cfg[i] & PMA_W) != 0,
+			(pma_cfg[i] & PMA_X) != 0, (pma_cfg[i] & PMA_L) != 0);
+
+		LOG_INF("  PMA: NONCACHEABLE=%d, WRITETHROUGH=%d, WRITEMISSNOALLOC=%d, "
+			"READMISSNOALLOC=%d",
+			(pma_cfg[i] & PMA_NONCACHEABLE) != 0, (pma_cfg[i] & PMA_WRITETHROUGH) != 0,
+			(pma_cfg[i] & PMA_WRITEMISSNOALLOC) != 0,
+			(pma_cfg[i] & PMA_READMISSNOALLOC) != 0);
+		k_msleep(100);
+	}
+
+	my_var[0] = 0xAA;
+
+	compiler_barrier();
+
+	LOG_INF("my_var[0] = 0x%02x", my_var[0]);
+
 	return 0;
 }
