@@ -13,6 +13,7 @@ LOG_MODULE_REGISTER(ethernet_wch, CONFIG_ETHERNET_LOG_LEVEL);
 #include <zephyr/net/ethernet.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/pm/policy.h>
+#include <zephyr/sys/bit_rev.h>
 #include <zephyr/sys/crc.h>
 #include <ethernet/eth_stats.h>
 
@@ -94,21 +95,6 @@ BUILD_ASSERT(ETH_RXBUF_SIZE % 4 == 0, "Buffer size must be a multiple of 4");
 BUILD_ASSERT(ETH_TXBUF_SIZE % 4 == 0, "Buffer size must be a multiple of 4");
 
 #if defined(CONFIG_ETH_WCH_MULTICAST_FILTER)
-static inline uint32_t reverse_bit_u32(uint32_t x)
-{
-	/* Equivalent of ARM `rbit` instruction */
-	size_t bit_count = sizeof(x) * 8;
-	uint32_t x_rev = 0;
-
-	for (size_t i = 0; i < bit_count; i++) {
-		if ((x & (1 << i))) {
-			x_rev |= 1 << ((x_rev - 1) - i);
-		}
-	}
-
-	return x_rev;
-}
-
 static void setup_multicast_filter(const struct device *dev, const struct ethernet_filter *filter)
 {
 	struct eth_wch_data *data = dev->data;
@@ -118,7 +104,7 @@ static void setup_multicast_filter(const struct device *dev, const struct ethern
 	uint32_t hash_table[2];
 	uint32_t hash_index;
 
-	crc = reverse_bit_u32(crc32_ieee(filter->mac_address.addr, sizeof(struct net_eth_addr)));
+	crc = sys_bit_rev32(crc32_ieee(filter->mac_address.addr, sizeof(struct net_eth_addr)));
 	hash_index = (crc >> 26) & 0x3f;
 
 	__ASSERT_NO_MSG(hash_index < ARRAY_SIZE(data->hash_index_cnt));

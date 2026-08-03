@@ -24,6 +24,7 @@
 #include <zephyr/net/ieee802154_radio.h>
 #include <zephyr/net/ieee802154.h>
 #include <zephyr/net/ptp_time.h>
+#include <zephyr/sys/bit_rev.h>
 #include <zephyr/sys/byteorder.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/irq.h>
@@ -1410,7 +1411,7 @@ static bool sl_802154_validate_phr(const sl_rail_rx_packet_info_t *pkt_info, uin
 	} else {
 		length_byte = pkt_info->p_last_portion_data[0];
 	}
-	return pkt_length == (uint16_t)(__RBIT(length_byte) >> 24);
+	return pkt_length == (uint16_t)sys_bit_rev8(length_byte);
 }
 
 static bool sl_802154_is_valid_pkt(struct sl_802154_data *data, sl_rail_rx_packet_info_t *pkt_info,

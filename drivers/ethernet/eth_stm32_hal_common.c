@@ -14,6 +14,7 @@
 #include <zephyr/net/net_pkt.h>
 #include <zephyr/net/lldp.h>
 #include <zephyr/net/phy.h>
+#include <zephyr/sys/bit_rev.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/sys/util.h>
 #include <zephyr/sys/__assert.h>
@@ -146,7 +147,7 @@ void eth_stm32_mcast_filter(const struct device *dev, const struct ethernet_filt
 	uint32_t hash_table[2];
 	uint32_t hash_index;
 
-	crc = __RBIT(crc32_ieee(filter->mac_address.addr, sizeof(struct net_eth_addr)));
+	crc = sys_bit_rev32(crc32_ieee(filter->mac_address.addr, sizeof(struct net_eth_addr)));
 	hash_index = (crc >> 26) & 0x3f;
 
 	__ASSERT_NO_MSG(hash_index < ARRAY_SIZE(dev_data->hash_index_cnt));

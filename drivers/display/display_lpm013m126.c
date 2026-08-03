@@ -18,6 +18,7 @@ LOG_MODULE_REGISTER(lpm013m126, CONFIG_DISPLAY_LOG_LEVEL);
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
 #include <zephyr/kernel.h>
+#include <zephyr/sys/bit_rev.h>
 
 /* Panel properties */
 #define LPM_BPP         3
@@ -39,15 +40,6 @@ struct lpm013m126_config {
 	uint8_t width;
 	uint8_t height;
 };
-
-/* bit-reversal of row address */
-static inline uint8_t bitrev8(uint8_t x)
-{
-	x = ((x & 0xF0) >> 4) | ((x & 0x0F) << 4);
-	x = ((x & 0xCC) >> 2) | ((x & 0x33) << 2);
-	x = ((x & 0xAA) >> 1) | ((x & 0x55) << 1);
-	return x;
-}
 
 /* The native format (1 bit per channel) is rather unusual. LVGL and
  * other libraries don't support it. In addition, the format is not
@@ -113,7 +105,7 @@ static int lpm_send_line(const struct device *dev, uint8_t line, uint8_t *buf, s
 	const struct lpm013m126_config *cfg = dev->config;
 
 	uint8_t cmd = LPM_WRITELINE_CMD;
-	uint8_t addr = bitrev8(line);
+	uint8_t addr = sys_bit_rev8(line);
 
 	struct spi_buf tx_bufs[] = {
 		{ .buf = &cmd,  .len = 1 },

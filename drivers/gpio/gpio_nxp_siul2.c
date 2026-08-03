@@ -12,6 +12,7 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/dt-bindings/gpio/nxp-siul2-gpio.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/sys/bit_rev.h>
 
 LOG_MODULE_REGISTER(nxp_siul2_gpio, CONFIG_GPIO_LOG_LEVEL);
 
@@ -75,11 +76,6 @@ struct gpio_nxp_siul2_data {
 #endif
 };
 
-static ALWAYS_INLINE uint16_t reverse_bits_16(uint16_t value)
-{
-	return (uint16_t)(__RBIT((uint32_t)value) >> 16);
-}
-
 static int nxp_siul2_gpio_configure(const struct device *dev, gpio_pin_t pin,
 				  gpio_flags_t flags)
 {
@@ -134,7 +130,7 @@ static int nxp_siul2_gpio_port_get_raw(const struct device *port, uint32_t *valu
 {
 	const struct gpio_nxp_siul2_config *config = port->config;
 
-	*value = reverse_bits_16(GPIO_READ(SIUL2_PGPDI));
+	*value = sys_bit_rev16(GPIO_READ(SIUL2_PGPDI));
 
 	return 0;
 }
@@ -146,9 +142,9 @@ static int nxp_siul2_gpio_port_set_masked_raw(const struct device *port,
 	const struct gpio_nxp_siul2_config *config = port->config;
 	gpio_port_pins_t pins_value;
 
-	pins_value = reverse_bits_16(GPIO_READ(SIUL2_PGPDO));
+	pins_value = sys_bit_rev16(GPIO_READ(SIUL2_PGPDO));
 	pins_value = (pins_value & ~mask) | (mask & value);
-	GPIO_WRITE(SIUL2_PGPDO, reverse_bits_16(pins_value));
+	GPIO_WRITE(SIUL2_PGPDO, sys_bit_rev16(pins_value));
 
 	return 0;
 }
@@ -160,7 +156,7 @@ static int nxp_siul2_gpio_port_set_bits_raw(const struct device *port,
 	uint16_t reg_val;
 
 	reg_val = GPIO_READ(SIUL2_PGPDO);
-	reg_val |= reverse_bits_16(pins);
+	reg_val |= sys_bit_rev16(pins);
 	GPIO_WRITE(SIUL2_PGPDO, reg_val);
 
 	return 0;
@@ -173,7 +169,7 @@ static int nxp_siul2_gpio_port_clear_bits_raw(const struct device *port,
 	uint16_t reg_val;
 
 	reg_val = GPIO_READ(SIUL2_PGPDO);
-	reg_val &= ~reverse_bits_16(pins);
+	reg_val &= ~sys_bit_rev16(pins);
 	GPIO_WRITE(SIUL2_PGPDO, reg_val);
 
 	return 0;
@@ -186,7 +182,7 @@ static int nxp_siul2_gpio_port_toggle_bits(const struct device *port,
 	uint16_t reg_val;
 
 	reg_val = GPIO_READ(SIUL2_PGPDO);
-	reg_val ^= reverse_bits_16(pins);
+	reg_val ^= sys_bit_rev16(pins);
 	GPIO_WRITE(SIUL2_PGPDO, reg_val);
 
 	return 0;

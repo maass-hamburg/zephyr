@@ -8,6 +8,7 @@
 
 #include <zephyr/drivers/clock_control.h>
 #include <zephyr/drivers/clock_control/clock_control_silabs.h>
+#include <zephyr/sys/bit_rev.h>
 
 #include <sl_hal_gpcrc.h>
 
@@ -42,15 +43,6 @@ static inline void crc_silabs_unlock(const struct device *dev)
 	struct crc_silabs_data *data = dev->data;
 
 	k_sem_give(&data->lock);
-}
-
-static inline uint16_t reverse_16bit(uint16_t x)
-{
-	x = ((x & 0xAAAA) >> 1) | ((x & 0x5555) << 1);
-	x = ((x & 0xCCCC) >> 2) | ((x & 0x3333) << 2);
-	x = ((x & 0xF0F0) >> 4) | ((x & 0x0F0F) << 4);
-
-	return (x >> 8) | (x << 8);
 }
 
 static int set_crc_config(const struct device *dev, struct crc_ctx *ctx)
@@ -124,7 +116,7 @@ static int set_crc_config(const struct device *dev, struct crc_ctx *ctx)
 		 * CRC-16/RIELLO
 		 * etc
 		 */
-		.init_value = (data->is_crc32) ? ctx->seed : reverse_16bit(ctx->seed),
+		.init_value = (data->is_crc32) ? ctx->seed : sys_bit_rev16(ctx->seed),
 	};
 
 	sl_hal_gpcrc_reset(config->gpcrc);
