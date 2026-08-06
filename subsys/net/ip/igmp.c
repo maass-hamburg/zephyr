@@ -631,8 +631,6 @@ int net_ipv4_igmp_rejoin(struct net_if *iface, const struct net_in_addr *addr)
 out:
 	net_if_ipv4_maddr_join(iface, maddr);
 
-	net_if_mcast_monitor(iface, &maddr->address, true);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_MCAST_JOIN, iface, &maddr->address.in_addr,
 					sizeof(struct net_in_addr));
 
@@ -727,8 +725,6 @@ int net_ipv4_igmp_join(struct net_if *iface, const struct net_in_addr *addr,
 #endif
 
 out:
-	net_if_mcast_monitor(iface, &maddr->address, true);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_MCAST_JOIN, iface, &maddr->address.in_addr,
 					sizeof(struct net_in_addr));
 
@@ -769,8 +765,6 @@ int net_ipv4_igmp_leave(struct net_if *iface, const struct net_in_addr *addr)
 	}
 
 out:
-	net_if_mcast_monitor(iface, &removed_addr.address, false);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_MCAST_LEAVE, iface,
 					&removed_addr.address.in_addr,
 					sizeof(struct net_in_addr));
@@ -809,6 +803,4 @@ void net_ipv4_igmp_init(struct net_if *iface)
 	}
 
 	net_if_ipv4_maddr_join(iface, maddr);
-
-	net_if_mcast_monitor(iface, &maddr->address, true);
 }

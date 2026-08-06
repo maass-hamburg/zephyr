@@ -2437,6 +2437,9 @@ struct net_if_mcast_addr *net_if_ipv6_maddr_add(struct net_if *iface,
 			sizeof(struct net_in6_addr));
 
 		ifmaddr = &ipv6->mcast[i];
+
+		net_if_mcast_monitor(iface, &ipv6->mcast[i].address, true);
+
 		goto out;
 	}
 
@@ -2496,6 +2499,8 @@ bool net_if_ipv6_maddr_rm(struct net_if *iface, const struct net_in6_addr *addr)
 			NET_EVENT_IPV6_MADDR_DEL, iface,
 			&ipv6->mcast[i].address.in6_addr,
 			sizeof(struct net_in6_addr));
+
+		net_if_mcast_monitor(iface, &ipv6->mcast[i].address, false);
 
 		ret = true;
 		goto out;
@@ -5204,6 +5209,8 @@ struct net_if_mcast_addr *net_if_ipv4_maddr_add(struct net_if *iface,
 			NET_EVENT_IPV4_MADDR_ADD, iface,
 			&maddr->address.in_addr,
 			sizeof(struct net_in_addr));
+
+		net_if_mcast_monitor(iface, &maddr->address, true);
 	}
 
 out:
@@ -5250,6 +5257,8 @@ bool net_if_ipv4_maddr_rm(struct net_if *iface, const struct net_in_addr *addr)
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV4_MADDR_DEL, iface,
 					&maddr->address.in_addr,
 					sizeof(struct net_in_addr));
+
+	net_if_mcast_monitor(iface, &maddr->address, false);
 
 	ret = true;
 

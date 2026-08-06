@@ -239,8 +239,6 @@ int net_ipv6_mld_rejoin(struct net_if *iface, const struct net_in6_addr *addr)
 out:
 	net_if_ipv6_maddr_join(iface, maddr);
 
-	net_if_mcast_monitor(iface, &maddr->address, true);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV6_MCAST_JOIN, iface,
 					&maddr->address.in6_addr,
 					sizeof(struct net_in6_addr));
@@ -287,8 +285,6 @@ int net_ipv6_mld_join(struct net_if *iface, const struct net_in6_addr *addr)
 out:
 	net_if_ipv6_maddr_join(iface, maddr);
 
-	net_if_mcast_monitor(iface, &maddr->address, true);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV6_MCAST_JOIN, iface,
 					&maddr->address.in6_addr,
 					sizeof(struct net_in6_addr));
@@ -327,8 +323,6 @@ int net_ipv6_mld_leave(struct net_if *iface, const struct net_in6_addr *addr)
 	}
 
 out:
-	net_if_mcast_monitor(iface, &removed_addr, false);
-
 	net_mgmt_event_notify_with_info(NET_EVENT_IPV6_MCAST_LEAVE, iface,
 					&removed_addr.in6_addr,
 					sizeof(struct net_in6_addr));
