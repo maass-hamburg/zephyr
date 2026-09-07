@@ -12,6 +12,56 @@
 #ifndef ZEPHYR_INCLUDE_USB_CLASS_USB_HUB_H_
 #define ZEPHYR_INCLUDE_USB_CLASS_USB_HUB_H_
 
+#include <stdint.h>
+#include <zephyr/sys/util.h>
+
+/** USB Hub descriptor type defined in spec. 11.23.2.1 */
+#define USB_DESC_HUB			0x29
+
+/** USB Hub descriptor defined in spec. Table 11-13, without the variable size bitmaps */
+struct usb_hub_descriptor {
+	uint8_t bDescLength;
+	uint8_t bDescriptorType;
+	uint8_t bNbrPorts;
+	uint16_t wHubCharacteristics;
+	uint8_t bPwrOn2PwrGood;
+	uint8_t bHubContrCurrent;
+} __packed;
+
+/** USB Hub characteristics (wHubCharacteristics) defined in spec. Table 11-13 */
+#define USB_HUB_CHAR_LPSM_MASK		GENMASK(1, 0)
+#define USB_HUB_CHAR_COMPOUND		BIT(2)
+#define USB_HUB_CHAR_OCPM_MASK		GENMASK(4, 3)
+#define USB_HUB_CHAR_TTTT_MASK		GENMASK(6, 5)
+#define USB_HUB_CHAR_PORT_INDICATORS	BIT(7)
+
+/** USB Hub status (wHubStatus) defined in spec. Table 11-19 */
+#define USB_HUB_STAT_LOCAL_POWER	BIT(0)
+#define USB_HUB_STAT_OVER_CURRENT	BIT(1)
+
+/** USB Hub status change (wHubChange) defined in spec. Table 11-20 */
+#define USB_HUB_CHANGE_LOCAL_POWER	BIT(0)
+#define USB_HUB_CHANGE_OVER_CURRENT	BIT(1)
+
+/** USB Hub port status (wPortStatus) defined in spec. Table 11-21 */
+#define USB_HUB_PORT_STAT_CONNECTION	BIT(0)
+#define USB_HUB_PORT_STAT_ENABLE	BIT(1)
+#define USB_HUB_PORT_STAT_SUSPEND	BIT(2)
+#define USB_HUB_PORT_STAT_OVER_CURRENT	BIT(3)
+#define USB_HUB_PORT_STAT_RESET		BIT(4)
+#define USB_HUB_PORT_STAT_POWER		BIT(8)
+#define USB_HUB_PORT_STAT_LOW_SPEED	BIT(9)
+#define USB_HUB_PORT_STAT_HIGH_SPEED	BIT(10)
+#define USB_HUB_PORT_STAT_TEST		BIT(11)
+#define USB_HUB_PORT_STAT_INDICATOR	BIT(12)
+
+/** USB Hub port status change (wPortChange) defined in spec. Table 11-22 */
+#define USB_HUB_PORT_CHANGE_CONNECTION	BIT(0)
+#define USB_HUB_PORT_CHANGE_ENABLE	BIT(1)
+#define USB_HUB_PORT_CHANGE_SUSPEND	BIT(2)
+#define USB_HUB_PORT_CHANGE_OVER_CURRENT BIT(3)
+#define USB_HUB_PORT_CHANGE_RESET	BIT(4)
+
 /** USB Hub Class Feature Selectors defined in spec. Table 11-17 */
 #define USB_HCFS_C_HUB_LOCAL_POWER	0x00
 #define USB_HCFS_C_HUB_OVER_CURRENT	0x01
