@@ -869,6 +869,21 @@
 			maximum-speed = "full-speed";
 			status = "disabled";
 		};
+
+		usbotg_hs: usb@49000000 {
+			compatible = "st,stm32mp1-hsotg", "snps,dwc2";
+			reg = <0x49000000 0x40000>;
+			clocks = <&rcc STM32_CLOCK(AHB2, 8)>;
+			resets = <&rctl STM32_RESET(AHB2, 8)>;
+			interrupts = <GIC_SPI 96 IRQ_TYPE_LEVEL IRQ_DEFAULT_PRIORITY>;
+			phys = <&usbphyc_port1>;
+			num-in-eps = <9>;
+			num-out-eps = <9>;
+			ghwcfg1 = <0x00000000>;
+			ghwcfg2 = <0x228fe150>;
+			ghwcfg4 = <0xe3f00030>;
+			status = "disabled";
+		};
 	};
 
 	gic: gic@a0021000 {
