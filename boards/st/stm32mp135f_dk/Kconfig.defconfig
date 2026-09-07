@@ -24,4 +24,8 @@ configdefault NET_IF_MAX_IPV6_COUNT
 configdefault USBH_HUB_CLASS
 	default y
 
+# The OTG controller is used as USB device controller only
+configdefault UHC_DWC2
+	default n
+
 endif # BOARD_STM32MP135F_DK

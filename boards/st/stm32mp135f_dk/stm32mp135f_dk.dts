@@ -408,3 +408,7 @@ csi_interface: &dcmipp {
 zephyr_uhc0: &usbh_ohci {
 	status = "okay";
 };
+
+zephyr_udc0: &usbotg_hs {
+	status = "okay";
+};

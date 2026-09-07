@@ -93,6 +93,14 @@ controller, the EHCI controller is not supported yet. The devices connected to
 the USB Type-A connectors are enumerated through the hub class of the USB host
 stack (``CONFIG_USBH_HUB_CLASS``).
 
+USB device
+----------
+
+The OTG controller is connected, through PHY port 1, to the USB Type-C®
+connector (CN7). It is used as USB device controller (``zephyr_udc0``), the
+Type-C® controller of the board negotiates the role and the controller is
+connected as soon as the device stack enables it.
+
 The 3.3 V USB supply (VDD3V3_USBHS, PMIC LDO4) is expected to be enabled by
 the boot firmware. The USBPHYC driver reports an error at boot if it is
 missing.
