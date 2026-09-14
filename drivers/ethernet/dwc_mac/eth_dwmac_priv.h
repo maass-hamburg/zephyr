@@ -112,6 +112,20 @@ struct dwmac_dma_desc {
 #endif
 };
 
+/* PHY interfaces limited to 10/100 Mbit/s */
+#define DWMAC_DT_INST_PHY_IF_MII(n)                                                                \
+	(DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, mii) ||                                    \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rmii))
+
+/* PHY interfaces able to signal Low Power Idle, RMII has no TX_ER signal for it */
+#define DWMAC_DT_INST_PHY_IF_LPI(n)                                                                \
+	(DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, mii) ||                                    \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, gmii) ||                                   \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rgmii) ||                                  \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rgmii_id) ||                               \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rgmii_rxid) ||                             \
+	 DT_INST_ENUM_HAS_VALUE(n, phy_connection_type, rgmii_txid))
+
 /* our private instance structure */
 struct dwmac_config {
 	DEVICE_MMIO_ROM;
@@ -121,6 +135,12 @@ struct dwmac_config {
 #if defined(CONFIG_PTP_CLOCK_DWC_MAC)
 	const struct device *ptp_clock;
 	const clock_control_subsys_t ptp_clk;
+#endif
+#ifdef CONFIG_ETH_DWC_ETHER_QOS_CORE
+	/* PHY interface is limited to 10/100 Mbit/s */
+	bool mii_if;
+	/* PHY interface is able to signal Low Power Idle */
+	bool lpi_if;
 #endif
 };
 
@@ -135,6 +155,11 @@ struct dwmac_priv {
 	uint32_t feature1;
 	uint32_t feature2;
 	uint32_t feature3;
+
+	/* Low Power Idle */
+	struct ethernet_lpi_param lpi;
+	bool lpi_supported;
+	bool eee_active;
 #endif
 
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
@@ -501,13 +526,20 @@ extern const struct ethernet_api dwmac_api;
 
 #define MAC_LPI_TIMERS_CTRL			0x00d4
 
+#define MAC_LPI_TIMERS_CTRL_LST			GENMASK(25, 16)
+#define MAC_LPI_TIMERS_CTRL_TWT			GENMASK(15, 0)
+
 /* 17.1.42 */
 
 #define MAC_LPI_ENTRY_TIMER			0x00d8
 
+#define MAC_LPI_ENTRY_TIMER_LPIET		GENMASK(19, 0)
+
 /* 17.1.43 */
 
 #define MAC_1US_TIC_COUNTERR			0x00dc
+
+#define MAC_1US_TIC_COUNTER_TIC_1US_CNTR	GENMASK(11, 0)
 
 /* 17.1.44 */
 

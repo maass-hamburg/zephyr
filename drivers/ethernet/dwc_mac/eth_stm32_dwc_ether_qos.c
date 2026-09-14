@@ -285,6 +285,8 @@ int dwmac_platform_init(const struct device *dev)
 			.phy_dev = DEVICE_DT_GET(DT_INST_PHANDLE(n, phy_handle)),                  \
 			.clock = DEVICE_DT_GET(STM32_CLOCK_CONTROL_NODE),                          \
 			.mac_clk = ETH_STM32_PCLKEN_SUBSYS(n, 0),                                  \
+			.mii_if = DWMAC_DT_INST_PHY_IF_MII(n),                                     \
+			.lpi_if = DWMAC_DT_INST_PHY_IF_LPI(n),                                     \
 			IF_ENABLED(CONFIG_PTP_CLOCK_DWC_MAC, (ETH_STM32_DWMAC_PTP_CONFIG(n)))      \
 	}
 

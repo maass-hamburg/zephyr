@@ -39,6 +39,11 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 /* size of pre-allocated packet fragments */
 #define RX_FRAG_SIZE CONFIG_NET_BUF_DATA_SIZE
 
+/* IEEE 802.3az: no Low Power Idle within 1 s after the link came up */
+#define LPI_LS_TIMER_MS 1000U
+/* Wake time, covers 100BASE-TX (30 us) and 1000BASE-T (16.5 us) */
+#define LPI_TW_TIMER_US 30U
+
 /*
  * Grace period to wait for TX descriptor/fragment availability.
  * Worst case estimate is 1514*8 bits at 10 mbps for an existing packet
@@ -551,6 +556,77 @@ static void dwmac_set_mac_addr(const struct device *dev, const uint8_t *addr, in
 	DWMAC_REG_WRITE(MAC_ADDRESS_LOW(n), reg_val);
 }
 
+static void dwmac_link_caps(const struct device *dev, struct phy_mac_caps *caps)
+{
+	const struct dwmac_config *cfg = dev->config;
+	struct dwmac_priv *p = dev->data;
+	bool half_duplex = (p->feature0 & MAC_HW_FEATURE0_HDSEL) != 0U;
+
+	caps->speeds = 0;
+	caps->lpi_speeds = 0;
+
+	if ((p->feature0 & MAC_HW_FEATURE0_MIISEL) != 0U) {
+		caps->speeds |= LINK_FULL_10BASE | LINK_FULL_100BASE;
+		if (half_duplex) {
+			caps->speeds |= LINK_HALF_10BASE | LINK_HALF_100BASE;
+		}
+	}
+
+	if (!cfg->mii_if && ((p->feature0 & MAC_HW_FEATURE0_GMIISEL) != 0U)) {
+		caps->speeds |= LINK_FULL_1000BASE;
+		if (half_duplex) {
+			caps->speeds |= LINK_HALF_1000BASE;
+		}
+	}
+
+	/* EEE is only defined for full duplex links of 100 Mbit/s and more */
+	if (p->lpi_supported) {
+		caps->lpi_speeds = caps->speeds & (LINK_FULL_100BASE | LINK_FULL_1000BASE);
+	}
+}
+
+static int dwmac_get_link_caps(const struct device *dev, struct net_if *iface __unused,
+			       struct phy_mac_caps *caps)
+{
+	dwmac_link_caps(dev, caps);
+
+	return 0;
+}
+
+/* Low Power Idle entry and exit is done by hardware, based on the LPI entry timer */
+static void dwmac_update_lpi(const struct device *dev)
+{
+	struct dwmac_priv *p = dev->data;
+	k_spinlock_key_t key;
+	uint32_t reg_val;
+
+	if (!p->lpi_supported) {
+		return;
+	}
+
+	key = k_spin_lock(&p->spinlock);
+
+	reg_val = DWMAC_REG_READ(MAC_LPI_CTRL_STATUS);
+	reg_val &= ~(MAC_LPI_CTRL_STATUS_LPIATE | MAC_LPI_CTRL_STATUS_LPITXA |
+		     MAC_LPI_CTRL_STATUS_PLS | MAC_LPI_CTRL_STATUS_LPIEN);
+
+	if (p->eee_active) {
+		/* Starts the LPI link status timer */
+		reg_val |= MAC_LPI_CTRL_STATUS_PLS;
+
+		if (p->lpi.tx_lpi_enabled) {
+			DWMAC_REG_WRITE(MAC_LPI_ENTRY_TIMER,
+					MIN(p->lpi.tx_lpi_timer_us, MAC_LPI_ENTRY_TIMER_LPIET));
+			reg_val |= MAC_LPI_CTRL_STATUS_LPIATE | MAC_LPI_CTRL_STATUS_LPITXA |
+				   MAC_LPI_CTRL_STATUS_LPIEN;
+		}
+	}
+
+	DWMAC_REG_WRITE(MAC_LPI_CTRL_STATUS, reg_val);
+
+	k_spin_unlock(&p->spinlock, key);
+}
+
 static int dwmac_set_config(const struct device *dev,
 			    struct net_if *iface __unused,
 			    enum ethernet_config_type type,
@@ -587,6 +663,12 @@ static int dwmac_set_config(const struct device *dev,
 		dwmac_setup_multicast_filter(dev, &config->filter);
 		break;
 #endif
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+	case ETHERNET_CONFIG_TYPE_LPI_PARAM:
+		((struct dwmac_priv *)dev->data)->lpi = config->lpi_param;
+		dwmac_update_lpi(dev);
+		break;
+#endif
 	default:
 		ret = -ENOTSUP;
 		break;
@@ -594,6 +676,24 @@ static int dwmac_set_config(const struct device *dev,
 
 	return ret;
 }
+
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+static int dwmac_get_config(const struct device *dev,
+			    struct net_if *iface __unused,
+			    enum ethernet_config_type type,
+			    struct ethernet_config *config)
+{
+	struct dwmac_priv *p = dev->data;
+
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_LPI_PARAM:
+		config->lpi_param = p->lpi;
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+#endif
 
 static void phy_link_state_changed(const struct device *phy_dev,
 				   struct phy_link_state *state,
@@ -640,6 +740,9 @@ static void phy_link_state_changed(const struct device *phy_dev,
 
 		DWMAC_REG_WRITE(MAC_CONF, reg_val);
 	}
+
+	p->eee_active = state->is_up && state->eee_active;
+	dwmac_update_lpi(dev);
 
 	net_eth_carrier_set(p->iface, state->is_up);
 }
@@ -736,7 +839,9 @@ static void dwmac_iface_init(struct net_if *iface)
 
 int dwmac_probe(const struct device *dev)
 {
+	const struct dwmac_config *cfg = dev->config;
 	struct dwmac_priv *p = dev->data;
+	struct phy_mac_caps mac_caps;
 	int ret;
 	uint32_t reg_val;
 	k_timepoint_t timeout;
@@ -776,6 +881,37 @@ int dwmac_probe(const struct device *dev)
 	ret = dwmac_platform_init(dev);
 	if (ret != 0) {
 		return ret;
+	}
+
+	if (cfg->lpi_if && ((p->feature0 & MAC_HW_FEATURE0_EEESEL) != 0U)) {
+		uint32_t csr_clk_rate;
+
+		/* The LPI timers count microseconds based on the CSR clock */
+		ret = clock_control_get_rate(cfg->clock, cfg->mac_clk, &csr_clk_rate);
+		if (ret == 0) {
+			DWMAC_REG_WRITE(MAC_1US_TIC_COUNTERR,
+					FIELD_PREP(MAC_1US_TIC_COUNTER_TIC_1US_CNTR,
+						   (csr_clk_rate / USEC_PER_SEC) - 1U));
+			DWMAC_REG_WRITE(MAC_LPI_TIMERS_CTRL,
+					FIELD_PREP(MAC_LPI_TIMERS_CTRL_LST, LPI_LS_TIMER_MS) |
+					FIELD_PREP(MAC_LPI_TIMERS_CTRL_TWT, LPI_TW_TIMER_US));
+			p->lpi_supported = true;
+		} else {
+			LOG_WRN("Unknown CSR clock rate, Low Power Idle disabled");
+		}
+	}
+
+	p->lpi.tx_lpi_enabled = true;
+	p->lpi.tx_lpi_timer_us = CONFIG_ETH_LPI_TIMER_DEFAULT_US;
+
+	/* The PHY is initialized after the MAC, it only advertises what both support */
+	if (cfg->phy_dev != NULL) {
+		dwmac_link_caps(dev, &mac_caps);
+
+		ret = phy_set_mac_caps(cfg->phy_dev, &mac_caps);
+		if ((ret < 0) && (ret != -ENOSYS)) {
+			LOG_WRN("Failed to set PHY MAC capabilities: %d", ret);
+		}
 	}
 
 	/* setup queues */
@@ -830,7 +966,11 @@ const struct ethernet_api dwmac_api = {
 	.iface_api.init		= dwmac_iface_init,
 	.get_capabilities	= dwmac_caps,
 	.set_config		= dwmac_set_config,
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+	.get_config		= dwmac_get_config,
+#endif
 	.get_phy		= dwmac_get_phy,
+	.get_link_caps		= dwmac_get_link_caps,
 	.send			= dwmac_send,
 #if defined(CONFIG_PTP_CLOCK_DWC_MAC)
 	.get_ptp_clock		= dwmac_get_ptp_clock,

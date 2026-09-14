@@ -271,6 +271,8 @@ static const struct dwmac_config dwmac_config = {
 	.phy_dev = DEVICE_DT_GET_OR_NULL(DT_INST_PHANDLE(0, phy_handle)),
 	.clock = DEVICE_DT_GET(DT_INST_CLOCKS_CTLR(0)),
 	.mac_clk = NXP_ETH_CLOCK_SUBSYS(mac),
+	.mii_if = DWMAC_DT_INST_PHY_IF_MII(0),
+	.lpi_if = DWMAC_DT_INST_PHY_IF_LPI(0),
 #if defined(CONFIG_PTP_CLOCK_DWC_MAC)
 	.ptp_clock = DEVICE_DT_GET(DT_INST_CHILD(0, ptp_clock)),
 	.ptp_clk = NXP_ETH_CLOCK_SUBSYS(ptp),
