@@ -616,6 +616,13 @@ New APIs and options
 * Network
 
   * Add :c:func:`net_eth_set_if_type_wifi` to set the ethernet interface type to Wi-Fi.
+  * Add Energy Efficient Ethernet (IEEE 802.3az) support. Ethernet drivers pass their link
+    capabilities to the PHY with :c:func:`phy_set_mac_caps` and report them with
+    :c:func:`net_eth_get_link_caps`. EEE is configured with :c:func:`phy_set_eee_cfg` and
+    :c:func:`phy_get_eee_cfg`, the Low Power Idle parameters of the MAC with the
+    ``NET_REQUEST_ETHERNET_SET_LPI_PARAM`` and ``NET_REQUEST_ETHERNET_GET_LPI_PARAM`` requests
+    (:kconfig:option:`CONFIG_NET_L2_ETHERNET_LPI_MGMT`). Supported by the generic MII PHY driver
+    and the Synopsys DesignWare Ethernet QoS driver.
   * Add :c:func:`net_dhcpv4_set_reboot_hint` to seed the DHCPv4 client with a
     previously leased address for INIT-REBOOT.
   * Add an mDNS responder interface policy

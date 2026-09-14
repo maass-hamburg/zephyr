@@ -14,6 +14,7 @@ Ethernet
    vlan.rst
    lldp.rst
    8021Qav.rst
+   eee.rst
 
 Overview
 ********
@@ -36,6 +37,7 @@ Zephyr supports following Ethernet features:
 * :ref:`IEEE 802.1AS (gPTP) <gptp_interface>`
 * :ref:`IEEE 802.1Qav (credit based shaping) <8021Qav>`
 * :ref:`LLDP (Link Layer Discovery Protocol) <lldp_interface>`
+* :ref:`IEEE 802.3az (Energy Efficient Ethernet) <ethernet_eee>`
 
 Not all Ethernet device drivers support all of these features. You can
 see what is supported by ``net iface`` net-shell command. It will print

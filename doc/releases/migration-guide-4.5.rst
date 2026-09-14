@@ -788,6 +788,19 @@ Ethernet
   instead of :kconfig:option:`CONFIG_NET_L2_ETHERNET`. The later is now enabled by default when the
   former is. (:github:`117121`)
 
+* The ``phy-handle`` property of Ethernet controllers now uses ``dependency-mode: reverse``, so
+  the PHY is initialized after the Ethernet controller referencing it. Ethernet drivers must not
+  call PHY functions from their init function, except :c:func:`phy_set_mac_caps`.
+
+* The generic MII PHY driver (:dtcompatible:`ethernet-phy`) now always configures the Energy
+  Efficient Ethernet (EEE) advertisement of PHYs supporting EEE. EEE is only advertised, if the
+  Ethernet driver reports Low Power Idle support with :c:func:`phy_set_mac_caps`. Previously the
+  advertisement was left at the reset default of the PHY. The driver also only advertises link
+  speeds supported by the Ethernet driver, if it provides them.
+
+* :c:struct:`phy_link_state` has a new member ``eee_active``. Out-of-tree PHY drivers, which fill
+  in a :c:struct:`phy_link_state` on the stack, must initialize it.
+
 Flash
 =====
 * :dtcompatible:`jedec,spi-nand` now requires a ``plane-bytes`` property, which indicates the size
