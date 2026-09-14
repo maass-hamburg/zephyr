@@ -73,11 +73,16 @@ static void print_supported_ethernet_capabilities(
 	const struct shell *sh, struct net_if *iface)
 {
 	enum ethernet_hw_caps caps = net_eth_get_hw_capabilities(iface);
+	struct phy_mac_caps link_caps;
 
 	ARRAY_FOR_EACH(eth_hw_caps, i) {
 		if (caps & eth_hw_caps[i].capability) {
 			PR("\t%s\n", eth_hw_caps[i].description);
 		}
+	}
+
+	if ((net_eth_get_link_caps(iface, &link_caps) == 0) && (link_caps.lpi_speeds != 0U)) {
+		PR("\t%s\n", "Low Power Idle (IEEE 802.3az)");
 	}
 
 #ifdef CONFIG_PTP_CLOCK
@@ -104,7 +109,8 @@ static void print_phy_link_state(const struct shell *sh, const struct device *ph
 				       : PHY_LINK_IS_SPEED_100M(link.speed) ? "100 Mbits"
 									    : "10 Mbits");
 
-	PR("%s-duplex\n", PHY_LINK_IS_FULL_DUPLEX(link.speed) ? "full" : "half");
+	PR("%s-duplex%s\n", PHY_LINK_IS_FULL_DUPLEX(link.speed) ? "full" : "half",
+	   link.eee_active ? ", EEE active" : "");
 }
 #endif
 
@@ -964,6 +970,128 @@ static int cmd_net_link_speed(const struct shell *sh, size_t argc, char *argv[])
 	PR_WARNING("No speed specified\n");
 	return -ENOEXEC;
 }
+
+static void print_eee_speeds(const struct shell *sh, const char *name,
+			     enum phy_link_speed speeds)
+{
+	PR("%s:%s%s%s\n", name,
+	   ((speeds & LINK_FULL_100BASE) != 0U) ? " 100BASE-TX" : "",
+	   ((speeds & LINK_FULL_1000BASE) != 0U) ? " 1000BASE-T" : "",
+	   (speeds == 0U) ? " none" : "");
+}
+
+static int set_lpi_timer(const struct shell *sh, struct net_if *iface __maybe_unused,
+			 const char *arg __maybe_unused)
+{
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+	struct ethernet_req_params params = { 0 };
+	unsigned long timer_us;
+	int ret = 0;
+
+	timer_us = shell_strtoul(arg, 10, &ret);
+	if ((ret != 0) || (timer_us > UINT32_MAX)) {
+		PR_WARNING("Invalid LPI timer: %s\n", arg);
+		return -EINVAL;
+	}
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_GET_LPI_PARAM, iface, &params, sizeof(params));
+	if (ret < 0) {
+		PR_WARNING("Failed to get LPI parameters (%d)\n", ret);
+		return ret;
+	}
+
+	params.lpi_param.tx_lpi_timer_us = (uint32_t)timer_us;
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_SET_LPI_PARAM, iface, &params, sizeof(params));
+	if (ret < 0) {
+		PR_WARNING("Failed to set LPI parameters (%d)\n", ret);
+		return ret;
+	}
+
+	return 0;
+#else
+	PR_WARNING("Set %s to enable %s support.\n", "CONFIG_NET_L2_ETHERNET_LPI_MGMT",
+		   "LPI timer");
+
+	return -ENOTSUP;
+#endif /* CONFIG_NET_L2_ETHERNET_LPI_MGMT */
+}
+
+static int cmd_net_eee(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct phy_eee_cfg eee_cfg;
+	const struct device *phy_dev;
+	struct net_if *iface;
+	int idx;
+	int ret;
+
+	if (argc < 2) {
+		PR_WARNING("Usage: net iface eee <index> [on|off] [timer <us>]\n");
+		return -ENOEXEC;
+	}
+
+	idx = get_iface_idx(sh, argv[1]);
+	if (idx < 0) {
+		return -ENOEXEC;
+	}
+
+	iface = net_if_get_by_index(idx);
+	if (iface == NULL) {
+		PR_WARNING("No such interface in index %d\n", idx);
+		return -ENOEXEC;
+	}
+
+	if (net_if_l2(iface) != &NET_L2_GET_NAME(ETHERNET)) {
+		PR_WARNING("Interface %d is not Ethernet type\n", idx);
+		return -EINVAL;
+	}
+
+	phy_dev = net_eth_get_phy(iface);
+	if (phy_dev == NULL) {
+		PR_WARNING("No PHY device found for interface %d\n", idx);
+		return -ENOEXEC;
+	}
+
+	ret = phy_get_eee_cfg(phy_dev, &eee_cfg);
+	if (ret < 0) {
+		PR_WARNING("Failed to get EEE configuration (%d)\n", ret);
+		return ret;
+	}
+
+	if (argc == 2) {
+		PR("EEE %s, %s\n", eee_cfg.enable ? "enabled" : "disabled",
+		   eee_cfg.active ? "active" : "inactive");
+		print_eee_speeds(sh, "Supported", eee_cfg.supported);
+		print_eee_speeds(sh, "Advertised", eee_cfg.adv);
+		print_eee_speeds(sh, "Link partner", eee_cfg.lp_adv);
+
+		return 0;
+	}
+
+	for (int i = 2; i < argc; i++) {
+		if ((strcmp(argv[i], "on") == 0) || (strcmp(argv[i], "off") == 0)) {
+			eee_cfg.enable = (strcmp(argv[i], "on") == 0);
+
+			ret = phy_set_eee_cfg(phy_dev, &eee_cfg);
+			if (ret < 0) {
+				PR_WARNING("Failed to set EEE configuration (%d)\n", ret);
+				return ret;
+			}
+		} else if ((strcmp(argv[i], "timer") == 0) && ((i + 1) < argc)) {
+			i++;
+
+			ret = set_lpi_timer(sh, iface, argv[i]);
+			if (ret < 0) {
+				return ret;
+			}
+		} else {
+			PR_WARNING("Invalid argument: %s\n", argv[i]);
+			return -EINVAL;
+		}
+	}
+
+	return 0;
+}
 #endif /* CONFIG_ETH_PHY_DRIVER */
 
 #if defined(CONFIG_NET_SHELL_DYN_CMD_COMPLETION)
@@ -999,6 +1127,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(net_cmd_iface,
 		  SHELL_HELP("Sets link speed for the network interface",
 			     "<index> <Speed 10/100/1000/2500/5000> <Duplex[optional]:h/f>"),
 		  cmd_net_link_speed),
+	SHELL_CMD(eee, IFACE_DYN_CMD,
+		  SHELL_HELP("Shows or configures Energy Efficient Ethernet",
+			     "<index> [on|off] [timer <us>]"),
+		  cmd_net_eee),
 #endif /* CONFIG_ETH_PHY_DRIVER */
 	SHELL_SUBCMD_SET_END
 );
