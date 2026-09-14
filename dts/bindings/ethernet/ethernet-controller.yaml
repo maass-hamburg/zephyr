@@ -10,9 +10,12 @@ include:
 properties:
   phy-handle:
     type: phandle
-    dependency-mode: ignore
+    dependency-mode: reverse
     description: |
       Specifies a reference to a node representing a PHY device.
+      The PHY device depends on the Ethernet device, so the Ethernet
+      device is initialized first and can pass its link capabilities
+      to the PHY with phy_set_mac_caps().
 
   phy-connection-type:
     type: string
