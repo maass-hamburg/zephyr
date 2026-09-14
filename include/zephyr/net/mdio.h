@@ -103,6 +103,8 @@ enum mdio_opcode {
 #define MDIO_PCS_EEE_CAP		0x0014U
 /* Auto-negotiation Register: EEE advertisement Register */
 #define MDIO_AN_EEE_ADV			0x003CU
+/* Auto-negotiation Register: EEE link partner ability Register */
+#define MDIO_AN_EEE_LPABLE		0x003DU
 
 
 /* BASE-T1 registers */

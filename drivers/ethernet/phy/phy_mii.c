@@ -45,6 +45,12 @@ struct phy_mii_dev_data {
 	bool gigabit_supported;
 	bool autoneg_in_progress;
 	k_timepoint_t autoneg_timeout;
+	struct phy_mac_caps mac_caps;
+	enum phy_link_speed adv_speeds;
+	enum phy_cfg_link_flag adv_flags;
+	enum phy_link_speed eee_supported;
+	enum phy_link_speed eee_adv;
+	bool eee_enable;
 };
 
 /* Offset to align capabilities bits of 1000BASE-T Control and Status regs */
@@ -191,6 +197,7 @@ static int update_link_state(const struct device *dev)
 	/* If link is down, we can stop here. */
 	if (!link_up) {
 		data->state.speed = 0;
+		data->state.eee_active = false;
 		if (link_up != data->state.is_up) {
 			data->state.is_up = false;
 			LOG_INF("PHY (%d) is down", cfg->phy_addr);
@@ -210,6 +217,8 @@ static int update_link_state(const struct device *dev)
 		if ((data->state.speed != new_speed) || !data->state.is_up) {
 			data->state.is_up = true;
 			data->state.speed = new_speed;
+			/* EEE is negotiated during auto-negotiation */
+			data->state.eee_active = false;
 
 			LOG_INF("PHY (%d) Link speed %s Mb, %s duplex",
 				cfg->phy_addr,
@@ -313,13 +322,21 @@ static int check_autonegotiation_completion(const struct device *dev)
 		data->state.speed = LINK_HALF_10BASE;
 	}
 
+	data->state.eee_active = false;
+	if (data->eee_supported != 0U) {
+		if (phy_mii_eee_resolve(dev, data->state.speed, &data->state.eee_active) < 0) {
+			return -EIO;
+		}
+	}
+
 	data->state.is_up = true;
 
-	LOG_INF("PHY (%d) Link speed %s Mb, %s duplex",
+	LOG_INF("PHY (%d) Link speed %s Mb, %s duplex%s",
 		cfg->phy_addr,
 		PHY_LINK_IS_SPEED_1000M(data->state.speed) ? "1000" :
 		(PHY_LINK_IS_SPEED_100M(data->state.speed) ? "100" : "10"),
-		PHY_LINK_IS_FULL_DUPLEX(data->state.speed) ? "full" : "half");
+		PHY_LINK_IS_FULL_DUPLEX(data->state.speed) ? "full" : "half",
+		data->state.eee_active ? ", EEE" : "");
 
 	return 0;
 }
@@ -367,24 +384,43 @@ static int phy_mii_write(const struct device *dev, uint16_t reg_addr,
 	return phy_mii_reg_write(dev, reg_addr, (uint16_t)data);
 }
 
-static int phy_mii_cfg_link(const struct device *dev, enum phy_link_speed adv_speeds,
-			    enum phy_cfg_link_flag flags)
+/* Link speeds to advertise EEE for, EEE needs Low Power Idle support from the MAC */
+static enum phy_link_speed phy_mii_eee_adv_speeds(const struct phy_mii_dev_data *data,
+						  enum phy_link_speed adv_speeds)
+{
+	if (!data->eee_enable) {
+		return 0;
+	}
+
+	return data->eee_adv & data->eee_supported & data->mac_caps.lpi_speeds & adv_speeds;
+}
+
+/* Apply the requested link configuration, must be called with data->sem held */
+static int phy_mii_apply_link_cfg(const struct device *dev)
 {
 	struct phy_mii_dev_data *const data = dev->data;
 	const struct phy_mii_dev_config *const cfg = dev->config;
-	int ret = 0;
+	enum phy_link_speed adv_speeds = data->adv_speeds;
+	bool eee_changed = false;
+	int ret;
 
-	k_sem_take(&data->sem, K_FOREVER);
+	if (data->mac_caps.speeds != 0U) {
+		adv_speeds &= data->mac_caps.speeds;
+	}
 
-	if ((flags & PHY_FLAG_AUTO_NEGOTIATION_DISABLED) != 0U) {
+	if (adv_speeds == 0U) {
+		LOG_ERR("PHY (%d) No link speed supported by both PHY and MAC", cfg->phy_addr);
+		return -ENOTSUP;
+	}
+
+	if ((data->adv_flags & PHY_FLAG_AUTO_NEGOTIATION_DISABLED) != 0U) {
 		/* If auto-negotiation is disabled, only one speed can be selected.
 		 * If gigabit is not supported, this speed must not be 1000M.
 		 */
 		if (!data->gigabit_supported && PHY_LINK_IS_SPEED_1000M(adv_speeds)) {
 			LOG_ERR("PHY (%d) Gigabit not supported, can't configure link",
 				cfg->phy_addr);
-			ret = -ENOTSUP;
-			goto cfg_link_end;
+			return -ENOTSUP;
 		}
 
 		ret = phy_mii_set_bmcr_reg_autoneg_disabled(dev, adv_speeds);
@@ -392,23 +428,51 @@ static int phy_mii_cfg_link(const struct device *dev, enum phy_link_speed adv_sp
 			data->autoneg_in_progress = false;
 			k_work_reschedule(&data->monitor_work, K_NO_WAIT);
 		}
-	} else {
-		ret = phy_mii_cfg_link_autoneg(dev, adv_speeds, data->gigabit_supported);
+
+		return ret;
+	}
+
+	if (data->eee_supported != 0U) {
+		ret = phy_mii_eee_set_adv(dev, phy_mii_eee_adv_speeds(data, adv_speeds));
 		if (ret >= 0) {
-			LOG_DBG("PHY (%d) Starting MII PHY auto-negotiate sequence", cfg->phy_addr);
-			data->autoneg_in_progress = true;
-			data->autoneg_timeout =
-				sys_timepoint_calc(K_MSEC(CONFIG_PHY_AUTONEG_TIMEOUT_MS));
-			k_work_reschedule(&data->monitor_work,
-					  K_MSEC(MII_AUTONEG_POLL_INTERVAL_MS));
+			eee_changed = true;
+		} else if (ret != -EALREADY) {
+			return ret;
 		}
 	}
 
+	ret = phy_mii_cfg_link_autoneg(dev, adv_speeds, data->gigabit_supported);
+	if ((ret == -EALREADY) && eee_changed) {
+		ret = phy_mii_restart_autoneg(dev);
+	}
+
+	if (ret >= 0) {
+		LOG_DBG("PHY (%d) Starting MII PHY auto-negotiate sequence", cfg->phy_addr);
+		data->autoneg_in_progress = true;
+		data->autoneg_timeout = sys_timepoint_calc(K_MSEC(CONFIG_PHY_AUTONEG_TIMEOUT_MS));
+		k_work_reschedule(&data->monitor_work, K_MSEC(MII_AUTONEG_POLL_INTERVAL_MS));
+	}
+
+	return ret;
+}
+
+static int phy_mii_cfg_link(const struct device *dev, enum phy_link_speed adv_speeds,
+			    enum phy_cfg_link_flag flags)
+{
+	struct phy_mii_dev_data *const data = dev->data;
+	const struct phy_mii_dev_config *const cfg = dev->config;
+	int ret;
+
+	k_sem_take(&data->sem, K_FOREVER);
+
+	data->adv_speeds = adv_speeds;
+	data->adv_flags = flags;
+
+	ret = phy_mii_apply_link_cfg(dev);
 	if (ret == -EALREADY) {
 		LOG_DBG("PHY (%d) Link already configured", cfg->phy_addr);
 	}
 
-cfg_link_end:
 	k_sem_give(&data->sem);
 
 	return ret;
@@ -466,6 +530,74 @@ static int phy_mii_link_cb_set(const struct device *dev, phy_callback_t cb,
 	return 0;
 }
 
+static int phy_mii_set_mac_caps(const struct device *dev, const struct phy_mac_caps *caps)
+{
+	struct phy_mii_dev_data *const data = dev->data;
+	int ret = 0;
+
+	k_sem_take(&data->sem, K_FOREVER);
+
+	data->mac_caps = *caps;
+
+	/* Before the PHY is initialized, the capabilities are applied by phy_mii_init() */
+	if (device_is_ready(dev)) {
+		ret = phy_mii_apply_link_cfg(dev);
+		if (ret == -EALREADY) {
+			ret = 0;
+		}
+	}
+
+	k_sem_give(&data->sem);
+
+	return ret;
+}
+
+static int phy_mii_set_eee_cfg(const struct device *dev, const struct phy_eee_cfg *eee_cfg)
+{
+	struct phy_mii_dev_data *const data = dev->data;
+	int ret;
+
+	k_sem_take(&data->sem, K_FOREVER);
+
+	if (data->eee_supported == 0U) {
+		ret = -ENOTSUP;
+	} else {
+		data->eee_enable = eee_cfg->enable;
+		data->eee_adv = eee_cfg->adv;
+
+		ret = phy_mii_apply_link_cfg(dev);
+		if (ret == -EALREADY) {
+			ret = 0;
+		}
+	}
+
+	k_sem_give(&data->sem);
+
+	return ret;
+}
+
+static int phy_mii_get_eee_cfg(const struct device *dev, struct phy_eee_cfg *eee_cfg)
+{
+	struct phy_mii_dev_data *const data = dev->data;
+	int ret = 0;
+
+	k_sem_take(&data->sem, K_FOREVER);
+
+	eee_cfg->enable = data->eee_enable;
+	eee_cfg->adv = data->eee_adv;
+	eee_cfg->supported = data->eee_supported;
+	eee_cfg->lp_adv = 0;
+	eee_cfg->active = data->state.eee_active;
+
+	if ((data->eee_supported != 0U) && data->state.is_up) {
+		ret = phy_mii_eee_get_lp_adv(dev, &eee_cfg->lp_adv);
+	}
+
+	k_sem_give(&data->sem);
+
+	return ret;
+}
+
 static int phy_mii_init(const struct device *dev)
 {
 	const struct phy_mii_dev_config *const cfg = dev->config;
@@ -499,6 +631,16 @@ static int phy_mii_init(const struct device *dev)
 		return ret;
 	}
 
+	ret = phy_mii_eee_get_supported(dev, &data->eee_supported);
+	if (ret < 0) {
+		LOG_ERR("Failed to read PHY EEE capabilities: %d", ret);
+		return ret;
+	}
+
+	/* EEE is only advertised, if the MAC reports Low Power Idle support */
+	data->eee_enable = true;
+	data->eee_adv = data->eee_supported;
+
 	k_work_init_delayable(&data->monitor_work, monitor_work_handler);
 
 	/* Advertise default speeds */
@@ -521,6 +663,11 @@ static DEVICE_API(ethphy, phy_mii_driver_api) = {
 	.cfg_link = phy_mii_cfg_link,
 	.read = phy_mii_read,
 	.write = phy_mii_write,
+	.read_c45 = phy_mii_mmd_read,
+	.write_c45 = phy_mii_mmd_write,
+	.set_mac_caps = phy_mii_set_mac_caps,
+	.set_eee_cfg = phy_mii_set_eee_cfg,
+	.get_eee_cfg = phy_mii_get_eee_cfg,
 };
 
 #if ANY_RESET_GPIO

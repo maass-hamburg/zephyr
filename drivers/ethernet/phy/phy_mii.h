@@ -10,6 +10,7 @@
 #include <zephyr/device.h>
 #include <zephyr/net/phy.h>
 #include <zephyr/net/mii.h>
+#include <zephyr/net/mdio.h>
 
 #define PHY_INST_GENERATE_DEFAULT_SPEEDS(n)							\
 ((DT_INST_ENUM_HAS_VALUE(n, default_speeds, 10base_half_duplex) ? LINK_HALF_10BASE : 0) |	\
@@ -179,5 +180,176 @@ static inline enum phy_link_speed phy_mii_get_link_speed_bmcr_reg(const struct d
 	}
 
 	return speed;
+}
+
+static inline int phy_mii_restart_autoneg(const struct device *dev)
+{
+	uint32_t bmcr_reg = 0U;
+
+	if (phy_read(dev, MII_BMCR, &bmcr_reg) < 0) {
+		return -EIO;
+	}
+
+	bmcr_reg |= MII_BMCR_AUTONEG_ENABLE | MII_BMCR_AUTONEG_RESTART;
+
+	if (phy_write(dev, MII_BMCR, bmcr_reg) < 0) {
+		return -EIO;
+	}
+
+	return 0;
+}
+
+static inline int phy_mii_mmd_setup(const struct device *dev, uint8_t devad, uint16_t regad)
+{
+	uint32_t devad_field = devad & MII_MMD_ACR_DEVAD_MASK;
+
+	if (phy_write(dev, MII_MMD_ACR, MII_MMD_ACR_ADDR | devad_field) < 0) {
+		return -EIO;
+	}
+
+	if (phy_write(dev, MII_MMD_AADR, regad) < 0) {
+		return -EIO;
+	}
+
+	if (phy_write(dev, MII_MMD_ACR, MII_MMD_ACR_DATA_NO_POS_INC | devad_field) < 0) {
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/* Read a MMD register through the clause 22 MMD access registers */
+static inline int phy_mii_mmd_read(const struct device *dev, uint8_t devad, uint16_t regad,
+				   uint16_t *data)
+{
+	uint32_t value = 0U;
+
+	if (phy_mii_mmd_setup(dev, devad, regad) < 0) {
+		return -EIO;
+	}
+
+	if (phy_read(dev, MII_MMD_AADR, &value) < 0) {
+		return -EIO;
+	}
+
+	*data = (uint16_t)value;
+
+	return 0;
+}
+
+/* Write a MMD register through the clause 22 MMD access registers */
+static inline int phy_mii_mmd_write(const struct device *dev, uint8_t devad, uint16_t regad,
+				    uint16_t data)
+{
+	if (phy_mii_mmd_setup(dev, devad, regad) < 0) {
+		return -EIO;
+	}
+
+	if (phy_write(dev, MII_MMD_AADR, data) < 0) {
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/*
+ * The EEE capability (3.20), EEE advertisement (7.60) and EEE link partner ability (7.61)
+ * registers share the same bit layout.
+ */
+static inline enum phy_link_speed phy_mii_eee_reg_to_speeds(uint16_t reg)
+{
+	enum phy_link_speed speeds = 0;
+
+	if ((reg & MDIO_AN_EEE_ADV_100TX) != 0U) {
+		speeds |= LINK_FULL_100BASE;
+	}
+
+	if ((reg & MDIO_AN_EEE_ADV_1000T) != 0U) {
+		speeds |= LINK_FULL_1000BASE;
+	}
+
+	return speeds;
+}
+
+static inline int phy_mii_eee_get_supported(const struct device *dev, enum phy_link_speed *speeds)
+{
+	uint16_t cap_reg = 0U;
+
+	if (phy_read_c45(dev, MDIO_MMD_PCS, MDIO_PCS_EEE_CAP, &cap_reg) < 0) {
+		return -EIO;
+	}
+
+	/* PHYs without MMD access registers read back all ones */
+	if (cap_reg == UINT16_MAX) {
+		cap_reg = 0U;
+	}
+
+	*speeds = phy_mii_eee_reg_to_speeds(cap_reg);
+
+	return 0;
+}
+
+static inline int phy_mii_eee_get_lp_adv(const struct device *dev, enum phy_link_speed *speeds)
+{
+	uint16_t lp_reg = 0U;
+
+	if (phy_read_c45(dev, MDIO_MMD_AN, MDIO_AN_EEE_LPABLE, &lp_reg) < 0) {
+		return -EIO;
+	}
+
+	*speeds = phy_mii_eee_reg_to_speeds(lp_reg);
+
+	return 0;
+}
+
+static inline int phy_mii_eee_set_adv(const struct device *dev, enum phy_link_speed adv_speeds)
+{
+	uint16_t adv_reg = 0U;
+	uint16_t adv_reg_old;
+
+	if (phy_read_c45(dev, MDIO_MMD_AN, MDIO_AN_EEE_ADV, &adv_reg) < 0) {
+		return -EIO;
+	}
+	adv_reg_old = adv_reg;
+
+	adv_reg &= (uint16_t)~(MDIO_AN_EEE_ADV_100TX | MDIO_AN_EEE_ADV_1000T);
+
+	if ((adv_speeds & LINK_FULL_100BASE) != 0U) {
+		adv_reg |= MDIO_AN_EEE_ADV_100TX;
+	}
+
+	if ((adv_speeds & LINK_FULL_1000BASE) != 0U) {
+		adv_reg |= MDIO_AN_EEE_ADV_1000T;
+	}
+
+	if (adv_reg == adv_reg_old) {
+		return -EALREADY;
+	}
+
+	if (phy_write_c45(dev, MDIO_MMD_AN, MDIO_AN_EEE_ADV, adv_reg) < 0) {
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/* Resolve if EEE is active on a link with the given negotiated speed */
+static inline int phy_mii_eee_resolve(const struct device *dev, enum phy_link_speed speed,
+				      bool *active)
+{
+	uint16_t adv_reg = 0U;
+	enum phy_link_speed lp_speeds;
+
+	if (phy_read_c45(dev, MDIO_MMD_AN, MDIO_AN_EEE_ADV, &adv_reg) < 0) {
+		return -EIO;
+	}
+
+	if (phy_mii_eee_get_lp_adv(dev, &lp_speeds) < 0) {
+		return -EIO;
+	}
+
+	*active = (phy_mii_eee_reg_to_speeds(adv_reg) & lp_speeds & speed) != 0U;
+
+	return 0;
 }
 #endif /* ZEPHYR_PHY_MII_H_ */

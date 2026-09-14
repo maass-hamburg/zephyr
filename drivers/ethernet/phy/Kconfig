@@ -26,6 +26,12 @@ config ETH_PHY_API_PLCA
 	  Ethernet phy drivers should select this, if they implement the plca
 	  related api functions
 
+config ETH_PHY_API_EEE
+	bool
+	help
+	  Ethernet phy drivers should select this, if they implement the
+	  Energy Efficient Ethernet related api functions
+
 config PHY_INIT_PRIORITY
 	int "Ethernet PHY driver init priority"
 	default ETH_INIT_PRIORITY
@@ -40,6 +46,7 @@ config PHY_GENERIC_MII
 	default y
 	depends on DT_HAS_ETHERNET_PHY_ENABLED
 	select MDIO
+	select ETH_PHY_API_EEE
 	select GPIO if $(dt_compat_any_has_prop,$(DT_COMPAT_ETHERNET_PHY),reset-gpios)
 	help
 	  This is a generic MII PHY interface that communicates with the

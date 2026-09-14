@@ -95,6 +95,8 @@ struct phy_link_state {
 	enum phy_link_speed speed;
 	/** When true the link is active and connected */
 	bool is_up;
+	/** When true Energy Efficient Ethernet (IEEE 802.3az) is active on the link */
+	bool eee_active;
 };
 
 /** @brief Ethernet configure link flags. */
@@ -119,6 +121,31 @@ struct phy_plca_cfg {
 	uint8_t burst_timer;
 	/** PLCA to_timer in bit-times, which determines the PLCA transmit opportunity */
 	uint8_t to_timer;
+};
+
+/** @brief Link capabilities of the Ethernet MAC attached to a PHY */
+struct phy_mac_caps {
+	/** OR'd link speeds supported by the MAC, 0 if unknown */
+	enum phy_link_speed speeds;
+	/** OR'd link speeds for which the MAC supports Low Power Idle */
+	enum phy_link_speed lpi_speeds;
+};
+
+/** @brief Energy Efficient Ethernet (IEEE 802.3az) configuration */
+struct phy_eee_cfg {
+	/** EEE advertisement enabled */
+	bool enable;
+	/**
+	 * OR'd link speeds to advertise EEE for. EEE is only advertised for link speeds, for
+	 * which both the PHY and the MAC support it.
+	 */
+	enum phy_link_speed adv;
+	/** OR'd link speeds for which the PHY supports EEE, read only */
+	enum phy_link_speed supported;
+	/** OR'd link speeds for which the link partner advertises EEE, read only */
+	enum phy_link_speed lp_adv;
+	/** EEE is active on the current link, read only */
+	bool active;
 };
 
 /**
@@ -169,6 +196,12 @@ __subsystem struct ethphy_driver_api {
 	/** @driver_ops_optional @copybrief phy_write_c45 */
 	int (*write_c45)(const struct device *dev, uint8_t devad, uint16_t regad, uint16_t data);
 
+	/**
+	 * @driver_ops_optional @copybrief phy_set_mac_caps
+	 * @important Drivers must accept this call before the PHY device is initialized.
+	 */
+	int (*set_mac_caps)(const struct device *dev, const struct phy_mac_caps *caps);
+
 #if defined(CONFIG_ETH_PHY_API_PLCA) || defined(__DOXYGEN__)
 	/**
 	 * @driver_ops_optional @copybrief phy_set_plca_cfg
@@ -188,6 +221,20 @@ __subsystem struct ethphy_driver_api {
 	 */
 	int (*get_plca_sts)(const struct device *dev, bool *plca_sts);
 #endif /* CONFIG_ETH_PHY_API_PLCA */
+
+#if defined(CONFIG_ETH_PHY_API_EEE) || defined(__DOXYGEN__)
+	/**
+	 * @driver_ops_optional @copybrief phy_set_eee_cfg
+	 * @kconfig_dep{CONFIG_ETH_PHY_API_EEE}
+	 */
+	int (*set_eee_cfg)(const struct device *dev, const struct phy_eee_cfg *eee_cfg);
+
+	/**
+	 * @driver_ops_optional @copybrief phy_get_eee_cfg
+	 * @kconfig_dep{CONFIG_ETH_PHY_API_EEE}
+	 */
+	int (*get_eee_cfg)(const struct device *dev, struct phy_eee_cfg *eee_cfg);
+#endif /* CONFIG_ETH_PHY_API_EEE */
 };
 
 /** @} */
@@ -360,6 +407,34 @@ static inline int phy_write_c45(const struct device *dev, uint8_t devad, uint16_
 }
 
 /**
+ * @brief      Set the link capabilities of the attached MAC
+ *
+ * Tells the PHY which link speeds the Ethernet MAC supports and for which of them it supports
+ * Low Power Idle. The PHY only advertises link speeds supported by both, and only advertises
+ * Energy Efficient Ethernet for link speeds with Low Power Idle support.
+ *
+ * Ethernet drivers call this from their init function, which runs before the PHY is
+ * initialized. If it is called after the PHY is initialized, the advertisement is updated and
+ * auto-negotiation is restarted, if the advertisement changed.
+ *
+ * @param[in]  dev   PHY device structure
+ * @param[in]  caps  Pointer to the MAC link capabilities
+ *
+ * @retval 0 If successful.
+ * @retval -EIO If communication with PHY failed.
+ * @retval -ENOTSUP If no link speed is supported by both the PHY and the MAC.
+ * @retval -ENOSYS If not implemented by the PHY driver.
+ */
+static inline int phy_set_mac_caps(const struct device *dev, const struct phy_mac_caps *caps)
+{
+	if (DEVICE_API_GET(ethphy, dev)->set_mac_caps == NULL) {
+		return -ENOSYS;
+	}
+
+	return DEVICE_API_GET(ethphy, dev)->set_mac_caps(dev, caps);
+}
+
+/**
  * @brief      Write PHY PLCA configuration
  *
  * This routine provides a generic interface to configure PHY PLCA settings.
@@ -438,6 +513,66 @@ static inline int phy_get_plca_sts(__maybe_unused const struct device *dev,
 #else
 	return -ENOSYS;
 #endif /* CONFIG_ETH_PHY_API_PLCA */
+}
+
+/**
+ * @brief      Set PHY Energy Efficient Ethernet configuration
+ *
+ * Configures the Energy Efficient Ethernet (IEEE 802.3az) advertisement and restarts
+ * auto-negotiation, if the advertisement changed. EEE is only advertised for link speeds, for
+ * which both the PHY and the MAC support it, see phy_set_mac_caps(). The read only members of
+ * @p eee_cfg are ignored.
+ *
+ * @kconfig_dep{CONFIG_ETH_PHY_API_EEE}
+ *
+ * @param[in]  dev      PHY device structure
+ * @param[in]  eee_cfg  Pointer to EEE configuration structure
+ *
+ * @retval 0 If successful.
+ * @retval -EIO If communication with PHY failed.
+ * @retval -ENOTSUP If the PHY does not support EEE.
+ * @retval -ENOSYS If not implemented by the PHY driver.
+ */
+static inline int phy_set_eee_cfg(__maybe_unused const struct device *dev,
+				  __maybe_unused const struct phy_eee_cfg *eee_cfg)
+{
+#if defined(CONFIG_ETH_PHY_API_EEE)
+	if (DEVICE_API_GET(ethphy, dev)->set_eee_cfg == NULL) {
+		return -ENOSYS;
+	}
+
+	return DEVICE_API_GET(ethphy, dev)->set_eee_cfg(dev, eee_cfg);
+#else
+	return -ENOSYS;
+#endif /* CONFIG_ETH_PHY_API_EEE */
+}
+
+/**
+ * @brief      Get PHY Energy Efficient Ethernet configuration
+ *
+ * Returns the Energy Efficient Ethernet (IEEE 802.3az) configuration and status.
+ *
+ * @kconfig_dep{CONFIG_ETH_PHY_API_EEE}
+ *
+ * @param[in]  dev      PHY device structure
+ * @param[out] eee_cfg  Pointer to receive the EEE configuration and status
+ *
+ * @retval 0 If successful.
+ * @retval -EIO If communication with PHY failed.
+ * @retval -ENOSYS If not implemented by the PHY driver.
+ */
+static inline int phy_get_eee_cfg(__maybe_unused const struct device *dev,
+				  __maybe_unused struct phy_eee_cfg *eee_cfg)
+{
+#if defined(CONFIG_ETH_PHY_API_EEE)
+	if (DEVICE_API_GET(ethphy, dev)->get_eee_cfg == NULL) {
+		return -ENOSYS;
+	}
+
+	return DEVICE_API_GET(ethphy, dev)->get_eee_cfg(dev, eee_cfg);
+#else
+	return -ENOSYS;
+#endif /* CONFIG_ETH_PHY_API_EEE */
 }
 
 #ifdef __cplusplus

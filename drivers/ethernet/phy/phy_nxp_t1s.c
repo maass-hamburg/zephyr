@@ -146,7 +146,7 @@ static void phy_nxp_t1s_isr(const struct device *dev)
 	const struct nxp_t1s_config *config = dev->config;
 	TENBASET_PHY_Type *base = config->base;
 	struct nxp_t1s_data *data = dev->data;
-	struct phy_link_state state;
+	struct phy_link_state state = {};
 	bool plca_status;
 	uint16_t flags;
 
