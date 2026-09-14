@@ -26,6 +26,17 @@ static inline bool is_hw_caps_supported(const struct device *dev,
 	return ((api->get_capabilities(dev, iface) & caps) != 0);
 }
 
+static inline bool is_lpi_supported(struct net_if *iface)
+{
+	struct phy_mac_caps link_caps;
+
+	if (net_eth_get_link_caps(iface, &link_caps) < 0) {
+		return false;
+	}
+
+	return link_caps.lpi_speeds != 0U;
+}
+
 static int ethernet_set_config(uint64_t mgmt_request,
 			       struct net_if *iface,
 			       void *data, size_t len)
@@ -195,6 +206,14 @@ static int ethernet_set_config(uint64_t mgmt_request,
 
 		memcpy(&config.filter, &params->filter, sizeof(struct ethernet_filter));
 		type = ETHERNET_CONFIG_TYPE_FILTER;
+	} else if (IS_ENABLED(CONFIG_NET_L2_ETHERNET_LPI_MGMT) &&
+		   (mgmt_request == NET_REQUEST_ETHERNET_SET_LPI_PARAM)) {
+		if (!is_lpi_supported(iface)) {
+			return -ENOTSUP;
+		}
+
+		config.lpi_param = params->lpi_param;
+		type = ETHERNET_CONFIG_TYPE_LPI_PARAM;
 	} else {
 		return -EINVAL;
 	}
@@ -225,6 +244,11 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_SET_TXINJECTION_MODE,
 
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_SET_MAC_FILTER,
 				  ethernet_set_config);
+
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_SET_LPI_PARAM,
+				  ethernet_set_config);
+#endif /* CONFIG_NET_L2_ETHERNET_LPI_MGMT */
 
 static int ethernet_get_config(uint64_t mgmt_request,
 			       struct net_if *iface,
@@ -436,6 +460,20 @@ static int ethernet_get_config(uint64_t mgmt_request,
 		}
 
 		params->txinjection_mode = config.txinjection_mode;
+	} else if (IS_ENABLED(CONFIG_NET_L2_ETHERNET_LPI_MGMT) &&
+		   (mgmt_request == NET_REQUEST_ETHERNET_GET_LPI_PARAM)) {
+		if (!is_lpi_supported(iface)) {
+			return -ENOTSUP;
+		}
+
+		type = ETHERNET_CONFIG_TYPE_LPI_PARAM;
+
+		ret = api->get_config(dev, iface, type, &config);
+		if (ret != 0) {
+			return ret;
+		}
+
+		params->lpi_param = config.lpi_param;
 	} else {
 		return -EINVAL;
 	}
@@ -463,6 +501,11 @@ NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_GET_TXTIME_PARAM,
 
 NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_GET_TXINJECTION_MODE,
 				  ethernet_get_config);
+
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+NET_MGMT_REGISTER_REQUEST_HANDLER(NET_REQUEST_ETHERNET_GET_LPI_PARAM,
+				  ethernet_get_config);
+#endif /* CONFIG_NET_L2_ETHERNET_LPI_MGMT */
 
 void ethernet_mgmt_raise_carrier_on_event(struct net_if *iface)
 {

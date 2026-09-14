@@ -49,6 +49,14 @@ config ETH_QEMU_EXTRA_ARGS
 	  See https://www.qemu.org/docs/master/system/invocation.html#hxtool-5
 	  for the available options.
 
+config ETH_LPI_TIMER_DEFAULT_US
+	int "Default Low Power Idle entry timer in microseconds"
+	default 1000
+	help
+	  Time the transmit path of an Ethernet MAC has to be idle, before it
+	  signals Low Power Idle to the PHY, when Energy Efficient Ethernet is
+	  active on the link. Only used by drivers with Low Power Idle support.
+
 # zephyr-keep-sorted-start
 source "drivers/ethernet/Kconfig.adin1140"
 source "drivers/ethernet/Kconfig.adin2111"

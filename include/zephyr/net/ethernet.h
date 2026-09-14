@@ -24,6 +24,7 @@
 #include <zephyr/sys/util.h>
 #include <zephyr/net/net_if.h>
 #include <zephyr/net/ethernet_vlan.h>
+#include <zephyr/net/phy.h>
 #include <zephyr/net/ptp_time.h>
 #include <zephyr/net/virtual.h>
 #include <zephyr/random/random.h>
@@ -227,6 +228,7 @@ enum ethernet_config_type {
 	ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT,
 	ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT,
 	ETHERNET_CONFIG_TYPE_EXTRA_TX_PKT_HEADROOM,
+	ETHERNET_CONFIG_TYPE_LPI_PARAM,
 };
 
 enum ethernet_qav_param_type {
@@ -492,6 +494,14 @@ struct ethernet_txtime_param {
 	bool enable_txtime;
 };
 
+/** Ethernet Low Power Idle (IEEE 802.3az) specific parameters */
+struct ethernet_lpi_param {
+	/** Signal Low Power Idle on transmit, if Energy Efficient Ethernet is active on the link */
+	bool tx_lpi_enabled;
+	/** Transmit idle time in microseconds, before Low Power Idle is signalled */
+	uint32_t tx_lpi_timer_us;
+};
+
 /** Protocols that are supported by checksum offloading */
 enum ethernet_checksum_support {
 	/** Device does not support any L3/L4 checksum offloading */
@@ -523,6 +533,7 @@ struct ethernet_config {
 		struct ethernet_qbv_param qbv_param;
 		struct ethernet_qbu_param qbu_param;
 		struct ethernet_txtime_param txtime_param;
+		struct ethernet_lpi_param lpi_param;
 
 		int priority_queues_num;
 		int ports_num;
@@ -610,6 +621,10 @@ struct ethernet_api {
 
 	/** Return PHY device that is tied to this ethernet device */
 	const struct device *(*get_phy)(const struct device *dev, struct net_if *iface);
+
+	/** Get the link speeds supported by the MAC and the ones with Low Power Idle support */
+	int (*get_link_caps)(const struct device *dev, struct net_if *iface,
+			     struct phy_mac_caps *caps);
 
 	/** Send a network packet */
 	int (*send)(const struct device *dev, struct net_pkt *pkt);
@@ -1083,6 +1098,34 @@ int net_eth_get_hw_config(struct net_if *iface, enum ethernet_config_type type,
 	}
 
 	return eth->get_config(dev, iface, type, config);
+}
+
+/**
+ * @brief Get the link capabilities of the Ethernet MAC.
+ *
+ * @param iface Network interface
+ * @param caps Pointer to receive the link speeds supported by the MAC and the link speeds for
+ *             which it supports Low Power Idle.
+ *
+ * @retval 0 If successful.
+ * @retval -ENOSYS If not implemented by the Ethernet driver.
+ */
+static inline int net_eth_get_link_caps(struct net_if *iface, struct phy_mac_caps *caps)
+{
+	const struct device *dev = net_if_get_device(iface);
+	const struct ethernet_api *eth;
+
+	NET_ASSERT(dev != NULL);
+
+	eth = (const struct ethernet_api *)dev->api;
+
+	NET_ASSERT(eth != NULL);
+
+	if (eth->get_link_caps == NULL) {
+		return -ENOSYS;
+	}
+
+	return eth->get_link_caps(dev, iface, caps);
 }
 
 

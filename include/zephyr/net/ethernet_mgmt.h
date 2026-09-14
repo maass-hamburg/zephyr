@@ -53,6 +53,8 @@ enum net_request_ethernet_cmd {
 	NET_REQUEST_ETHERNET_CMD_SET_TXINJECTION_MODE,
 	NET_REQUEST_ETHERNET_CMD_GET_TXINJECTION_MODE,
 	NET_REQUEST_ETHERNET_CMD_SET_MAC_FILTER,
+	NET_REQUEST_ETHERNET_CMD_SET_LPI_PARAM,
+	NET_REQUEST_ETHERNET_CMD_GET_LPI_PARAM,
 };
 
 #define NET_REQUEST_ETHERNET_SET_MAC_ADDRESS				\
@@ -130,11 +132,22 @@ NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_ETHERNET_GET_TXINJECTION_MODE);
 
 NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_ETHERNET_SET_MAC_FILTER);
 
+#define NET_REQUEST_ETHERNET_SET_LPI_PARAM				\
+	(NET_ETHERNET_BASE | NET_REQUEST_ETHERNET_CMD_SET_LPI_PARAM)
+
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_ETHERNET_SET_LPI_PARAM);
+
+#define NET_REQUEST_ETHERNET_GET_LPI_PARAM				\
+	(NET_ETHERNET_BASE | NET_REQUEST_ETHERNET_CMD_GET_LPI_PARAM)
+
+NET_MGMT_DEFINE_REQUEST_HANDLER(NET_REQUEST_ETHERNET_GET_LPI_PARAM);
+
 struct net_eth_addr;
 struct ethernet_qav_param;
 struct ethernet_qbv_param;
 struct ethernet_qbu_param;
 struct ethernet_txtime_param;
+struct ethernet_lpi_param;
 
 struct ethernet_req_params {
 	union {
@@ -147,6 +160,7 @@ struct ethernet_req_params {
 		struct ethernet_qbv_param qbv_param;
 		struct ethernet_qbu_param qbu_param;
 		struct ethernet_txtime_param txtime_param;
+		struct ethernet_lpi_param lpi_param;
 
 		struct ethernet_filter filter;
 
