@@ -67,6 +67,10 @@ struct eth_fake_context {
 
 	/* TXTIME parameters */
 	bool txtime_statuses[NET_TC_TX_COUNT];
+
+	/* LPI parameters */
+	struct ethernet_lpi_param lpi_param;
+	bool lpi_unsupported;
 };
 
 static struct eth_fake_context eth_fake_data;
@@ -100,6 +104,19 @@ static enum ethernet_hw_caps eth_fake_get_capabilities(const struct device *dev 
 	return  ETHERNET_LINK_10BASE | ETHERNET_LINK_100BASE | ETHERNET_QAV |
 		ETHERNET_PROMISC_MODE | ETHERNET_PRIORITY_QUEUES |
 		ETHERNET_QBV | ETHERNET_QBU | ETHERNET_TXTIME;
+}
+
+static int eth_fake_get_link_caps(const struct device *dev,
+				  struct net_if *iface __unused,
+				  struct phy_mac_caps *caps)
+{
+	struct eth_fake_context *ctx = dev->data;
+
+	caps->speeds = LINK_HALF_10BASE | LINK_FULL_10BASE | LINK_HALF_100BASE |
+		       LINK_FULL_100BASE;
+	caps->lpi_speeds = ctx->lpi_unsupported ? 0 : LINK_FULL_100BASE;
+
+	return 0;
 }
 
 static int eth_fake_get_total_bandwidth(struct eth_fake_context *ctx)
@@ -290,6 +307,9 @@ static int eth_fake_set_config(const struct device *dev,
 		ctx->promisc_mode = config->promisc_mode;
 
 		break;
+	case ETHERNET_CONFIG_TYPE_LPI_PARAM:
+		ctx->lpi_param = config->lpi_param;
+		break;
 	default:
 		return -ENOTSUP;
 	}
@@ -445,6 +465,9 @@ static int eth_fake_get_config(const struct device *dev,
 		}
 
 		break;
+	case ETHERNET_CONFIG_TYPE_LPI_PARAM:
+		config->lpi_param = ctx->lpi_param;
+		break;
 	default:
 		return -ENOTSUP;
 	}
@@ -458,6 +481,7 @@ static struct ethernet_api eth_fake_api_funcs = {
 	.get_capabilities = eth_fake_get_capabilities,
 	.set_config = eth_fake_set_config,
 	.get_config = eth_fake_get_config,
+	.get_link_caps = eth_fake_get_link_caps,
 	.send = eth_fake_send,
 };
 
@@ -1260,4 +1284,42 @@ ZTEST(net_ethernet_mgmt, test_change_to_promisc_mode)
 	change_to_same_promisc_mode();
 	change_promisc_mode_off();
 }
+
+#if defined(CONFIG_NET_L2_ETHERNET_LPI_MGMT)
+ZTEST(net_ethernet_mgmt, test_change_lpi_params)
+{
+	struct net_if *iface = default_iface;
+	struct ethernet_req_params params = { 0 };
+	int ret;
+
+	params.lpi_param.tx_lpi_enabled = true;
+	params.lpi_param.tx_lpi_timer_us = 250U;
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_SET_LPI_PARAM, iface,
+		       &params, sizeof(struct ethernet_req_params));
+	zassert_equal(ret, 0, "could not set LPI parameters (%d)", ret);
+
+	memset(&params, 0, sizeof(params));
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_GET_LPI_PARAM, iface,
+		       &params, sizeof(struct ethernet_req_params));
+	zassert_equal(ret, 0, "could not get LPI parameters (%d)", ret);
+	zassert_true(params.lpi_param.tx_lpi_enabled, "TX LPI should be enabled");
+	zassert_equal(params.lpi_param.tx_lpi_timer_us, 250U, "invalid LPI timer");
+
+	/* Requests fail, if the MAC has no Low Power Idle support */
+	eth_fake_data.lpi_unsupported = true;
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_SET_LPI_PARAM, iface,
+		       &params, sizeof(struct ethernet_req_params));
+	zassert_equal(ret, -ENOTSUP, "LPI parameters set without LPI support (%d)", ret);
+
+	ret = net_mgmt(NET_REQUEST_ETHERNET_GET_LPI_PARAM, iface,
+		       &params, sizeof(struct ethernet_req_params));
+	zassert_equal(ret, -ENOTSUP, "LPI parameters read without LPI support (%d)", ret);
+
+	eth_fake_data.lpi_unsupported = false;
+}
+#endif /* CONFIG_NET_L2_ETHERNET_LPI_MGMT */
+
 ZTEST_SUITE(net_ethernet_mgmt, NULL, ethernet_mgmt_setup, NULL, NULL, NULL);

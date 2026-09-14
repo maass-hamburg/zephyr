@@ -6,3 +6,10 @@ tests:
     tags:
       - net
       - ethernet_mgmt
+  net.ethernet_mgmt.no_lpi_mgmt:
+    min_ram: 32
+    tags:
+      - net
+      - ethernet_mgmt
+    extra_configs:
+      - CONFIG_NET_L2_ETHERNET_LPI_MGMT=n
