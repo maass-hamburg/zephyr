@@ -81,6 +81,12 @@ Removed APIs and options
    * RISC-V
 
       * ``CONFIG_EXTRA_EXCEPTION_INFO``
+      * ``riscv_clic_irq_enable()``, ``riscv_clic_irq_disable()``,
+        ``riscv_clic_irq_is_enabled()``, ``riscv_clic_irq_priority_set()``,
+        ``riscv_clic_irq_vector_set()`` and the
+        :file:`include/zephyr/drivers/interrupt_controller/riscv_clic.h` header
+      * ``riscv_aia_irq_enable()``, ``riscv_aia_irq_disable()`` and
+        ``riscv_aia_irq_is_enabled()``
 
    * x86
 
@@ -404,6 +410,13 @@ Deprecated APIs and options
   * Deprecated various fuel gauge property enums and union fields in favor of
     new versions with explicit unit suffixes.
 
+* Interrupt controller
+
+  * ``riscv_plic_irq_enable()``, ``riscv_plic_irq_disable()``,
+    ``riscv_plic_irq_is_enabled()`` and ``riscv_plic_set_priority()`` have been deprecated
+    in favor of :c:func:`riscv_ext_irq_enable`, :c:func:`riscv_ext_irq_disable`,
+    :c:func:`riscv_ext_irq_is_enabled` and :c:func:`riscv_ext_irq_priority_set`.
+
 * LoRa
 
   * Renamed :c:func:`lora_recv_duty_cycle` to :c:func:`lora_recv_duty_cycle_async`
@@ -529,6 +542,10 @@ New APIs and options
 
 * Architectures
 
+  * :kconfig:option:`CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER` (the SoC has an interrupt
+    controller behind the RISC-V external interrupt line implementing
+    :file:`riscv_ext_irq.h`; set for the PLIC and the AIA, selected by another such
+    controller's driver)
   * :kconfig:option:`CONFIG_ARM_MPU_CM7_UNMAPPED_REGION` (Arm Cortex-M7 catch-all MPU region
     for unmapped addresses, erratum 1013783 workaround)
   * :kconfig:option:`CONFIG_CORTEX_M_ERRATUM_440977_WORKAROUND` (keeps an ISB after
@@ -727,6 +744,13 @@ New APIs and options
   * :c:macro:`HWSPINLOCK_SPINLOCK_ARRAY_DT_INST_DEFINE`
   * :c:macro:`HWSPINLOCK_COMMON_CONFIG_FROM_DT_NODE`
   * :c:macro:`HWSPINLOCK_COMMON_CONFIG_FROM_DT_INST`
+
+* Interrupt controller
+
+  * :c:func:`riscv_ext_irq_enable`, :c:func:`riscv_ext_irq_disable`,
+    :c:func:`riscv_ext_irq_is_enabled` and :c:func:`riscv_ext_irq_priority_set`, the
+    interface a RISC-V external interrupt controller implements for the generic arch
+    interrupt management. Implemented by the PLIC and the AIA.
 
 * Kconfig
 

@@ -1070,6 +1070,47 @@ Input
 Interrupt Controllers
 =====================
 
+* On RISC-V, a CLIC based SoC now implements the arch interrupt management in its CLIC driver
+  rather than in the architecture's :file:`arch/riscv/core/irq_privileged.c`, which only covers SoCs
+  whose interrupts arrive through the ``mie``/``sie`` CSR. Out-of-tree CLIC drivers and SoCs
+  that implemented ``riscv_clic_irq_enable()``, ``riscv_clic_irq_disable()``,
+  ``riscv_clic_irq_is_enabled()``, ``riscv_clic_irq_priority_set()`` and
+  ``riscv_clic_irq_vector_set()`` must rename them to :c:func:`arch_irq_enable`,
+  :c:func:`arch_irq_disable`, :c:func:`arch_irq_is_enabled`, ``z_riscv_irq_priority_set()``
+  and ``z_riscv_irq_vector_set()`` respectively, and include :file:`zephyr/irq.h` in place of
+  the removed :file:`zephyr/drivers/interrupt_controller/riscv_clic.h`. Missing the rename is a
+  link error for an undefined ``arch_irq_enable``, not silently broken interrupts.
+  ``z_riscv_irq_vector_set()`` is now only called when
+  :kconfig:option:`CONFIG_CLIC_SMCLICSHV_EXT` is set, so a driver without selective hardware
+  vectoring no longer needs an empty one.
+
+  A CLIC based SoC no longer uses, and no longer needs to select,
+  :kconfig:option:`CONFIG_RISCV_SOC_COMMON_PRIVILEGED`: :kconfig:option:`CONFIG_RISCV_HAS_CLIC`
+  brings in the reset vector with the CLIC mode trap vector and the default
+  ``soc_interrupt_init()`` from :file:`drivers/interrupt_controller` instead. Out-of-tree
+  consequences: a
+  CLIC based SoC that relied on the layer's ``__soc_handle_irq`` default must now provide its
+  own, as the in-tree CLIC drivers already did; the default ``soc_interrupt_init()`` of a CLIC
+  based SoC only masks interrupts globally, where it used to also write the ``mie`` and ``mip``
+  CSRs the CLIC does not use; and :kconfig:option:`CONFIG_RISCV_VECTORED_MODE` is available to
+  such a SoC without the privileged layer.
+
+* On RISC-V, the controller behind the machine or supervisor external interrupt line now
+  implements one generic interface,
+  :file:`zephyr/drivers/interrupt_controller/riscv_ext_irq.h`, instead of the arch code picking
+  between PLIC-specific and AIA-specific functions. ``riscv_aia_irq_enable()``,
+  ``riscv_aia_irq_disable()`` and ``riscv_aia_irq_is_enabled()`` have been renamed to
+  :c:func:`riscv_ext_irq_enable`, :c:func:`riscv_ext_irq_disable` and
+  :c:func:`riscv_ext_irq_is_enabled`. The equivalent PLIC functions,
+  ``riscv_plic_irq_enable()``, ``riscv_plic_irq_disable()``, ``riscv_plic_irq_is_enabled()``
+  and ``riscv_plic_set_priority()``, still work but are deprecated in favor of the generic
+  ones; note that :c:func:`riscv_ext_irq_priority_set` takes a ``flags`` argument, which the
+  PLIC ignores. The PLIC functions that have no AIA equivalent, such as
+  :c:func:`riscv_plic_irq_set_pending` and :c:func:`riscv_plic_irq_set_affinity`, are
+  unchanged. The driver of another controller behind the external interrupt line can
+  implement the interface and select :kconfig:option:`CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER`
+  to use the generic interrupt management in place of its own ``arch_irq_*()``.
+
 * All interrupt controller bindings now use ``flags`` as the interrupt cell name
   instead of ``sense``. The following interrupt controller bindings were updated:
 
@@ -2994,6 +3035,37 @@ Architectures
   returning ``void`` to ``int`` so that the caller can react to error code when
   assertion is disabled. If assertion is enabled, it currently retains mostly
   the previous behavior of halting the system.
+
+* On RISC-V, :kconfig:option:`CONFIG_RISCV_HAS_PLIC`, :kconfig:option:`CONFIG_RISCV_HAS_CLIC`
+  and :kconfig:option:`CONFIG_RISCV_HAS_AIA` are no longer selected by the SoC. They now
+  follow the interrupt controller driver that the devicetree enables
+  (:kconfig:option:`CONFIG_PLIC`, :kconfig:option:`CONFIG_CLIC` or
+  :kconfig:option:`CONFIG_NRFX_CLIC`, and :kconfig:option:`CONFIG_RISCV_AIA`), plus a
+  ``sifive,clic-draft`` node for CLICs driven from SoC code. Out-of-tree SoCs that
+  ``select`` these options can drop the selects, as long as their interrupt controller is
+  described in the devicetree. They remain selectable for controllers that are not.
+
+* On RISC-V, ``CONFIG_RISCV_PRIVILEGED`` has been renamed to
+  :kconfig:option:`CONFIG_RISCV_SOC_COMMON_PRIVILEGED`. Despite its name it never stated
+  that a SoC implements the privileged ISA, only that the SoC uses the common support
+  layer for such SoCs (the reset vector, the weak
+  ``__soc_handle_irq`` and the ``mie``/``mip`` based ``arch_irq_*()`` operations). It is
+  now enabled from the devicetree, for every SoC whose hart has a ``riscv,cpu-intc`` node
+  and no CLIC, so a SoC no longer selects it; the old name still works but is deprecated
+  and will be removed in a future release. A SoC with such a node that manages interrupts
+  itself, as the Cadence SweRV family does with its PIC, sets it to ``n`` in its
+  :file:`Kconfig.defconfig` instead. The layer itself moved from
+  :file:`soc/common/riscv-privileged` into :file:`arch/riscv/core`, and the default
+  ``soc_interrupt_init()`` is now provided by the architecture for every RISC-V SoC that
+  enables :kconfig:option:`CONFIG_RISCV_SOC_INTERRUPT_INIT` without defining its own. A SoC
+  that added the layer's :file:`vector.S` or :file:`soc_irq.S` to its build by path must
+  update the path.
+
+* The ``CONFIG_SOC_AE350_INTERRUPT_TYPE`` choice has been removed. The Andes AE350 base
+  interrupt controller is now picked by the devicetree alone, so select the board target
+  whose devicetree describes the wanted controller (``adp_xc7k/ae350`` for the PLIC,
+  ``adp_xc7k/ae350/clic`` for the CLIC) instead of setting
+  ``CONFIG_SOC_AE350_INTERRUPT_TYPE_PLIC`` or ``CONFIG_SOC_AE350_INTERRUPT_TYPE_CLIC``.
 
 Video
 =====
