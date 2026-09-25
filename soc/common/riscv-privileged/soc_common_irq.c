@@ -12,44 +12,16 @@
 #include <zephyr/irq.h>
 #include <zephyr/irq_multilevel.h>
 
-#include <zephyr/drivers/interrupt_controller/riscv_clic.h>
 #include <zephyr/drivers/interrupt_controller/riscv_plic.h>
 #if defined(CONFIG_RISCV_HAS_AIA)
 #include <zephyr/drivers/interrupt_controller/riscv_aia.h>
 #endif
 
-#if defined(CONFIG_RISCV_HAS_CLIC)
-
-void arch_irq_enable(unsigned int irq)
-{
-	riscv_clic_irq_enable(irq);
-}
-
-void arch_irq_disable(unsigned int irq)
-{
-	riscv_clic_irq_disable(irq);
-}
-
-int arch_irq_is_enabled(unsigned int irq)
-{
-	return riscv_clic_irq_is_enabled(irq);
-}
-
-void z_riscv_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
-{
-	riscv_clic_irq_priority_set(irq, prio, flags);
-}
-
-void z_riscv_irq_vector_set(unsigned int irq)
-{
-#if defined(CONFIG_CLIC_SMCLICSHV_EXT)
-	riscv_clic_irq_vector_set(irq);
-#else
-	ARG_UNUSED(irq);
-#endif
-}
-
-#else /* PLIC + HLINT/CLINT or HLINT/CLINT only */
+/*
+ * A CLIC takes over every interrupt of the SoC, so a CLIC based SoC implements the
+ * arch interrupt management in its CLIC driver instead of here.
+ */
+#if !defined(CONFIG_RISCV_HAS_CLIC)
 
 void arch_irq_enable(unsigned int irq)
 {
@@ -207,7 +179,7 @@ void z_riscv_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flag
 }
 #endif /* CONFIG_RISCV_HAS_PLIC */
 
-#endif /* CONFIG_RISCV_HAS_CLIC */
+#endif /* !CONFIG_RISCV_HAS_CLIC */
 
 #if defined(CONFIG_RISCV_SOC_INTERRUPT_INIT)
 __weak void soc_interrupt_init(void)

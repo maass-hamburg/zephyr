@@ -13,7 +13,7 @@
 #include <zephyr/arch/riscv/csr.h>
 #include <zephyr/arch/riscv/icsr.h>
 #include <zephyr/device.h>
-#include <zephyr/drivers/interrupt_controller/riscv_clic.h>
+#include <zephyr/irq.h>
 #include "intc_clic.h"
 
 #if DT_HAS_COMPAT_STATUS_OKAY(riscv_clic)
@@ -115,8 +115,11 @@ static ALWAYS_INLINE uint8_t read_clic8(const struct device *dev, uint32_t offse
 
 /**
  * @brief Enable interrupt
+ *
+ * Every interrupt of a CLIC based SoC goes through the CLIC, so the driver
+ * implements the arch interrupt management directly.
  */
-void riscv_clic_irq_enable(uint32_t irq)
+void arch_irq_enable(unsigned int irq)
 {
 #ifdef CONFIG_LEGACY_CLIC_MEMORYMAP_ACCESS
 	const struct device *dev = DEVICE_DT_INST_GET(0);
@@ -133,7 +136,7 @@ void riscv_clic_irq_enable(uint32_t irq)
 /**
  * @brief Disable interrupt
  */
-void riscv_clic_irq_disable(uint32_t irq)
+void arch_irq_disable(unsigned int irq)
 {
 #ifdef CONFIG_LEGACY_CLIC_MEMORYMAP_ACCESS
 	const struct device *dev = DEVICE_DT_INST_GET(0);
@@ -150,7 +153,7 @@ void riscv_clic_irq_disable(uint32_t irq)
 /**
  * @brief Get enable status of interrupt
  */
-int riscv_clic_irq_is_enabled(uint32_t irq)
+int arch_irq_is_enabled(unsigned int irq)
 {
 	int is_enabled = 0;
 
@@ -171,7 +174,7 @@ int riscv_clic_irq_is_enabled(uint32_t irq)
 /**
  * @brief Set priority and level of interrupt
  */
-void riscv_clic_irq_priority_set(uint32_t irq, uint32_t pri, uint32_t flags)
+void z_riscv_irq_priority_set(unsigned int irq, unsigned int pri, uint32_t flags)
 {
 	const struct device *dev = DEVICE_DT_INST_GET(0);
 	const struct clic_data *data = dev->data;
@@ -228,10 +231,11 @@ void riscv_clic_irq_priority_set(uint32_t irq, uint32_t pri, uint32_t flags)
 #endif
 }
 
+#ifdef CONFIG_CLIC_SMCLICSHV_EXT
 /**
  * @brief Set vector mode of interrupt
  */
-void riscv_clic_irq_vector_set(uint32_t irq)
+void z_riscv_irq_vector_set(unsigned int irq)
 {
 #ifdef CONFIG_LEGACY_CLIC_MEMORYMAP_ACCESS
 	const struct device *dev = DEVICE_DT_INST_GET(0);
@@ -252,6 +256,7 @@ void riscv_clic_irq_vector_set(uint32_t irq)
 	#error "CLIC platforms must support either memory-mapped or SMCSRIND access"
 #endif
 }
+#endif /* CONFIG_CLIC_SMCLICSHV_EXT */
 
 /**
  * @brief Set pending bit of an interrupt

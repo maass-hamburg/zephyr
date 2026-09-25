@@ -45,11 +45,6 @@ uint32_t sy1xx_soc_get_peripheral_clock(void)
 	return SY1XX_ARCHI_PER_CLOCK;
 }
 
-void riscv_clic_irq_priority_set(uint32_t irq, uint32_t prio, uint32_t flags)
-{
-	/* we do not support priorities */
-}
-
 void soc_enable_irq(uint32_t idx)
 {
 	sys_write32(BIT(idx & SY1XX_ARCHI_ITC_IRQ_MASK),

@@ -70,13 +70,13 @@ extern void z_riscv_irq_priority_set(unsigned int irq,
 				     uint32_t flags);
 #else
 #define z_riscv_irq_priority_set(i, p, f) /* Nothing */
-#endif /* CONFIG_RISCV_HAS_PLIC || CONFIG_RISCV_HAS_CLIC */
+#endif /* CONFIG_RISCV_HAS_PLIC || CONFIG_RISCV_HAS_CLIC || CONFIG_RISCV_HAS_AIA */
 
-#ifdef CONFIG_RISCV_HAS_CLIC
+#ifdef CONFIG_CLIC_SMCLICSHV_EXT
 extern void z_riscv_irq_vector_set(unsigned int irq);
 #else
 #define z_riscv_irq_vector_set(i) /* Nothing */
-#endif /* CONFIG_RISCV_HAS_CLIC */
+#endif /* CONFIG_CLIC_SMCLICSHV_EXT */
 
 #define ARCH_IRQ_CONNECT(irq_p, priority_p, isr_p, isr_param_p, flags_p) \
 { \
