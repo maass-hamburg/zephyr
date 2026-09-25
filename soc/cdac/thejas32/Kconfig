@@ -3,6 +3,7 @@
 
 config SOC_THEJAS32
 	select RISCV
+	select RISCV_SOC_COMMON_PRIVILEGED
 	select INCLUDE_RESET_VECTOR
 	select RISCV_SOC_INTERRUPT_INIT
 	select ATOMIC_OPERATIONS_C
@@ -14,6 +15,6 @@ config SOC_THEJAS32
 	  India's Digital India RISC-V (DIR-V) programme. The image is loaded into
 	  and executed from internal SRAM, so execute-in-place (XIP) is not used.
 
-	  The SoC follows the RISC-V privileged specification for trap handling but
-	  uses a custom (non-PLIC) interrupt controller, so it provides its own
-	  interrupt management instead of selecting RISCV_SOC_COMMON_PRIVILEGED.
+	  The SoC follows the RISC-V privileged specification, with a custom
+	  (non-PLIC) interrupt controller behind the machine external interrupt
+	  line whose driver implements the generic riscv_ext_irq interface.

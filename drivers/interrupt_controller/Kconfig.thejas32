@@ -7,6 +7,7 @@ config THEJAS32_INTC
 	depends on DT_HAS_CDAC_THEJAS32_INTC_ENABLED
 	select MULTI_LEVEL_INTERRUPTS
 	select 2ND_LEVEL_INTERRUPTS
+	select RISCV_HAS_EXT_IRQ_CONTROLLER
 	help
 	  Driver for the C-DAC THEJAS32 second-level interrupt controller,
 	  which aggregates the SoC peripheral interrupt sources into the

@@ -16,6 +16,9 @@
  * claim/complete protocol. A source is cleared by servicing the peripheral
  * that raised it, so the controller handler simply dispatches the registered
  * ISR for every pending source.
+ *
+ * It implements the external interrupt controller interface of
+ * <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>.
  */
 
 #include <zephyr/device.h>
@@ -24,7 +27,7 @@
 #include <zephyr/irq_multilevel.h>
 #include <zephyr/sw_isr_table.h>
 #include <zephyr/sys/sys_io.h>
-#include <zephyr/drivers/interrupt_controller/intc_thejas32.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 
 #include "sw_isr_common.h"
 
@@ -50,7 +53,7 @@ static inline mem_addr_t thejas32_intc_en_reg(const struct device *dev)
 	return config->base + THEJAS32_INTC_INTR_EN;
 }
 
-void thejas32_intc_irq_enable(uint32_t irq)
+void riscv_ext_irq_enable(uint32_t irq)
 {
 	const struct device *dev = thejas32_intc_dev;
 	const uint32_t local_irq = irq_from_level_2(irq);
@@ -62,7 +65,7 @@ void thejas32_intc_irq_enable(uint32_t irq)
 	irq_unlock(key);
 }
 
-void thejas32_intc_irq_disable(uint32_t irq)
+void riscv_ext_irq_disable(uint32_t irq)
 {
 	const struct device *dev = thejas32_intc_dev;
 	const uint32_t local_irq = irq_from_level_2(irq);
@@ -74,12 +77,20 @@ void thejas32_intc_irq_disable(uint32_t irq)
 	irq_unlock(key);
 }
 
-int thejas32_intc_irq_is_enabled(uint32_t irq)
+int riscv_ext_irq_is_enabled(uint32_t irq)
 {
 	const struct device *dev = thejas32_intc_dev;
 	const uint32_t local_irq = irq_from_level_2(irq);
 
 	return (sys_read32(thejas32_intc_en_reg(dev)) & BIT(local_irq)) != 0;
+}
+
+void riscv_ext_irq_priority_set(uint32_t irq, uint32_t prio, uint32_t flags)
+{
+	/* The controller has no per-source priority or trigger configuration. */
+	ARG_UNUSED(irq);
+	ARG_UNUSED(prio);
+	ARG_UNUSED(flags);
 }
 
 static void thejas32_intc_irq_handler(const struct device *dev)
