@@ -23,6 +23,13 @@
 			riscv,isa-base = "rv32i";
 			riscv,isa-extensions = "i", "m", "c", "zicsr";
 			status = "okay";
+
+			cpu0_intc: interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#address-cells = <0>;
+				#interrupt-cells = <1>;
+				interrupt-controller;
+			};
 		};
 	};
 

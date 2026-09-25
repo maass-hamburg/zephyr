@@ -3,3 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 orsource "*/Kconfig.defconfig"
+
+if SOC_FAMILY_CDNS_SWERV
+
+# The SweRV PIC takes flat IRQ numbers rather than the second-level encoding the
+# generic interrupt management dispatches on, so the family provides its own
+# reset vector and interrupt management.
+config RISCV_SOC_COMMON_PRIVILEGED
+	default n
+
+endif # SOC_FAMILY_CDNS_SWERV

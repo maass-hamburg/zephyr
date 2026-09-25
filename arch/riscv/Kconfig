@@ -143,19 +143,22 @@ config INCLUDE_RESET_VECTOR
 
 config RISCV_SOC_COMMON_PRIVILEGED
 	bool
+	default y if DT_HAS_RISCV_CPU_INTC_ENABLED && !RISCV_HAS_CLIC
 	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	help
 	  Use the support the architecture provides for SoCs implementing the
 	  RISC-V privileged ISA whose interrupts are handled in CLINT mode: the
 	  reset vector, the weak __soc_handle_irq, and the arch_irq_*() operations
-	  on the mie/mip CSRs, dispatching to a PLIC or an AIA where the SoC has
-	  one.
+	  on the mie/mip CSRs, dispatching to the external interrupt controller
+	  of RISCV_HAS_EXT_IRQ_CONTROLLER where the SoC has one.
 
-	  A SoC with a CLIC does not need it: the CLIC drivers provide the
-	  counterpart of the layer, brought in by RISCV_HAS_CLIC. A SoC that
-	  implements the privileged ISA but manages interrupts itself, for
-	  instance because it has a custom interrupt controller, should not
-	  select this and must provide its own arch_irq_*() implementation.
+	  This is enabled automatically when the devicetree describes the hart's
+	  interrupt controller, a 'riscv,cpu-intc' node, and no CLIC: a SoC with
+	  a CLIC gets the counterpart of this from the CLIC drivers through
+	  RISCV_HAS_CLIC instead. A SoC with such a node that manages interrupts
+	  itself, for instance because its interrupt controller does not fit the
+	  riscv_ext_irq interface, sets this to n in its Kconfig.defconfig and
+	  provides its own reset vector and arch_irq_*() implementation.
 
 config RISCV_PRIVILEGED
 	bool
@@ -164,7 +167,8 @@ config RISCV_PRIVILEGED
 	help
 	  Deprecated name for RISCV_SOC_COMMON_PRIVILEGED. It never stated that a
 	  SoC implements the privileged ISA, only that it uses the common support
-	  layer for such SoCs, so select RISCV_SOC_COMMON_PRIVILEGED instead.
+	  layer for such SoCs, which is now enabled from the devicetree: drop the
+	  select.
 
 config RISCV_SOC_HAS_ISR_STACKING
 	bool
