@@ -69,8 +69,7 @@ int arch_irq_connect_dynamic(unsigned int irq, unsigned int priority,
 {
 	z_isr_install(irq + CONFIG_RISCV_RESERVED_IRQ_ISR_TABLES_OFFSET, routine, parameter);
 
-#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_CLIC) ||                            \
-	defined(CONFIG_RISCV_HAS_AIA)
+#if defined(CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER) || defined(CONFIG_RISCV_HAS_CLIC)
 	z_riscv_irq_priority_set(irq, priority, flags);
 #else
 	ARG_UNUSED(flags);

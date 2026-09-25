@@ -10,9 +10,10 @@
  *
  * Interface implemented by the interrupt controller sitting behind the RISC-V
  * machine or supervisor external interrupt line, which aggregates the SoC's
- * second-level interrupts. Exactly one implementation is built into an image:
- * the PLIC (@kconfig{CONFIG_RISCV_HAS_PLIC}) or the AIA
- * (@kconfig{CONFIG_RISCV_HAS_AIA}).
+ * second-level interrupts. Exactly one implementation is built into an image,
+ * and its driver sets @kconfig{CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER}: the PLIC
+ * and the AIA do so through @kconfig{CONFIG_RISCV_HAS_PLIC} and
+ * @kconfig{CONFIG_RISCV_HAS_AIA}, another controller's driver selects it.
  *
  * The generic RISC-V interrupt management in arch/riscv/core calls
  * these for second-level IRQs, and handles first-level IRQs itself through the

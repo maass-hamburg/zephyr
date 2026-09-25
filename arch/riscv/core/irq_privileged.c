@@ -15,14 +15,13 @@
 #include <zephyr/irq.h>
 #include <zephyr/irq_multilevel.h>
 
-#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_AIA)
+#ifdef CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER
 #include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
-#define HAS_EXT_IRQ_CONTROLLER 1
 #endif
 
 void arch_irq_enable(unsigned int irq)
 {
-#ifdef HAS_EXT_IRQ_CONTROLLER
+#ifdef CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER
 	if (irq_get_level(irq) == 2) {
 		riscv_ext_irq_enable(irq);
 		return;
@@ -56,7 +55,7 @@ void arch_irq_enable(unsigned int irq)
 
 void arch_irq_disable(unsigned int irq)
 {
-#ifdef HAS_EXT_IRQ_CONTROLLER
+#ifdef CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER
 	if (irq_get_level(irq) == 2) {
 		riscv_ext_irq_disable(irq);
 		return;
@@ -92,7 +91,7 @@ int arch_irq_is_enabled(unsigned int irq)
 {
 	unsigned long ie;
 
-#ifdef HAS_EXT_IRQ_CONTROLLER
+#ifdef CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER
 	if (irq_get_level(irq) == 2) {
 		return riscv_ext_irq_is_enabled(irq);
 	}
@@ -121,11 +120,11 @@ int arch_irq_is_enabled(unsigned int irq)
 	return !!(ie & (1UL << irq));
 }
 
-#ifdef HAS_EXT_IRQ_CONTROLLER
+#ifdef CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER
 void z_riscv_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 {
 	if (irq_get_level(irq) == 2) {
 		riscv_ext_irq_priority_set(irq, prio, flags);
 	}
 }
-#endif /* HAS_EXT_IRQ_CONTROLLER */
+#endif /* CONFIG_RISCV_HAS_EXT_IRQ_CONTROLLER */

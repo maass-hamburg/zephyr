@@ -391,6 +391,20 @@ config RISCV_HAS_AIA
 	  This is enabled automatically when the devicetree enables an APLIC or IMSIC
 	  the driver supports.
 
+config RISCV_HAS_EXT_IRQ_CONTROLLER
+	bool
+	depends on RISCV_SOC_COMMON_PRIVILEGED
+	default y if RISCV_HAS_PLIC || RISCV_HAS_AIA
+	help
+	  The SoC has an interrupt controller behind the machine or supervisor
+	  external interrupt line, aggregating its second-level interrupts, whose
+	  driver implements the interface in
+	  include/zephyr/drivers/interrupt_controller/riscv_ext_irq.h. The generic
+	  interrupt management then dispatches second-level IRQs to it.
+
+	  Set for the PLIC and the AIA. The driver of another such controller
+	  selects this and implements the interface.
+
 config RISCV_VECTORED_MODE
 	bool "Should the SOC use vectored mode"
 	depends on RISCV_SOC_COMMON_PRIVILEGED || RISCV_HAS_CLIC
