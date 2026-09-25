@@ -10,9 +10,6 @@ rsource "Kconfig.v2"
 # Source Zephyr Kconfig specifics from SoC roots.
 osource "$(KCONFIG_BINARY_DIR)/soc/Kconfig"
 
-# Source common Kconfig file
-osource "soc/common/Kconfig"
-
 module = SOC
 module-str = SOC
 source "subsys/logging/Kconfig.template.log_config"

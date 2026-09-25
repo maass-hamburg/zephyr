@@ -6,8 +6,11 @@
 
 /**
  * @file
- * @brief interrupt management code for riscv SOCs supporting the riscv
-	  privileged architecture specification
+ * @brief interrupt management of a SoC implementing the RISC-V privileged
+ *        architecture specification whose interrupts are handled in CLINT mode:
+ *        through the mie/sie CSR, and an external interrupt controller behind
+ *        it where the SoC has one. A CLIC takes this over, its driver providing
+ *        the interrupt management instead.
  */
 #include <zephyr/irq.h>
 #include <zephyr/irq_multilevel.h>

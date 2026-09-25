@@ -14,7 +14,7 @@
  * the PLIC (@kconfig{CONFIG_RISCV_HAS_PLIC}) or the AIA
  * (@kconfig{CONFIG_RISCV_HAS_AIA}).
  *
- * The generic RISC-V interrupt management in soc/common/riscv-privileged calls
+ * The generic RISC-V interrupt management in arch/riscv/core calls
  * these for second-level IRQs, and handles first-level IRQs itself through the
  * mie/sie CSR.
  */

@@ -31,6 +31,12 @@ zephyr_library_sources_ifdef(CONFIG_PM_S2RAM pm_s2ram.c pm_s2ram.S)
 zephyr_library_sources_ifdef(CONFIG_DEBUG_COREDUMP coredump.c)
 zephyr_library_sources_ifdef(CONFIG_IRQ_OFFLOAD irq_offload.c)
 zephyr_library_sources_ifdef(CONFIG_USE_ISR_WRAPPER isr.S)
+
+# The reset vector and the interrupt management of a SoC whose interrupts are
+# handled in CLINT mode. A CLIC takes both over, its driver providing them.
+if(CONFIG_RISCV_SOC_COMMON_PRIVILEGED AND NOT CONFIG_RISCV_HAS_CLIC)
+  zephyr_library_sources(vector.S soc_irq.S irq_privileged.c)
+endif()
 zephyr_library_sources_ifdef(CONFIG_RISCV_S_MODE_INTERNAL_SBI sbi.S)
 zephyr_library_sources_ifdef(CONFIG_RISCV_USER_COUNTER_ACCESS counters.c)
 zephyr_library_sources_ifdef(CONFIG_RISCV_PMP pmp.c pmp.S)

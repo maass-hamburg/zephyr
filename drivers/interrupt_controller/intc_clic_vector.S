@@ -7,7 +7,7 @@
 
 /*
  * Reset vector of a SoC whose interrupts are handled by a CLIC, the counterpart
- * of soc/common/riscv-privileged/vector.S for CLINT mode.
+ * of arch/riscv/core/vector.S for CLINT mode.
  *
  * The CLIC mode of the trap vector is defined by the CLIC specification rather
  * than by any one CLIC, so this is shared by every CLIC implementation,

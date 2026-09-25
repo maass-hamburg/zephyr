@@ -5,8 +5,8 @@
 #
 
 zephyr_sources(
-    ${ZEPHYR_BASE}/soc/common/riscv-privileged/soc_irq.S
-    ${ZEPHYR_BASE}/soc/common/riscv-privileged/vector.S
+    ${ZEPHYR_BASE}/arch/riscv/core/soc_irq.S
+    ${ZEPHYR_BASE}/arch/riscv/core/vector.S
 )
 
 zephyr_include_directories(.)

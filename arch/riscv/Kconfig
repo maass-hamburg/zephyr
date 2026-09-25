@@ -145,11 +145,11 @@ config RISCV_SOC_COMMON_PRIVILEGED
 	bool
 	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	help
-	  Use the common SoC support layer for SoCs implementing the RISC-V
-	  privileged ISA whose interrupts are handled in CLINT mode, found in
-	  soc/common/riscv-privileged. It provides the reset vector, the weak
-	  __soc_handle_irq, and the arch_irq_*() operations on the mie/mip CSRs,
-	  dispatching to a PLIC or an AIA where the SoC has one.
+	  Use the support the architecture provides for SoCs implementing the
+	  RISC-V privileged ISA whose interrupts are handled in CLINT mode: the
+	  reset vector, the weak __soc_handle_irq, and the arch_irq_*() operations
+	  on the mie/mip CSRs, dispatching to a PLIC or an AIA where the SoC has
+	  one.
 
 	  A SoC with a CLIC does not need it: the CLIC drivers provide the
 	  counterpart of the layer, brought in by RISCV_HAS_CLIC. A SoC that

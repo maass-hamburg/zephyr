@@ -9,8 +9,6 @@ if(_SOC_IS_IN_TREE)
 endif()
 unset(_SOC_IS_IN_TREE)
 
-add_subdirectory(common)
-
 # Below is inclusion of HWMv2 SoC CMake lists.
 string(TOUPPER SOC_FAMILY_${CONFIG_SOC_FAMILY}_DIR family_setting_dir)
 string(TOUPPER SOC_SERIES_${CONFIG_SOC_SERIES}_DIR series_setting_dir)
