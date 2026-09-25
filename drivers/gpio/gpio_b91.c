@@ -10,7 +10,7 @@
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/irq.h>
 #include <zephyr/drivers/gpio/gpio_utils.h>
-#include <zephyr/drivers/interrupt_controller/riscv_plic.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 
 
 /* Driver dts compatibility: telink,b91_gpio */
@@ -213,8 +213,8 @@ void gpio_b91_irq_set(const struct device *dev, gpio_pin_t pin,
 	gpiob_b91_irq_en_set(dev, pin);
 
 	/* Enable PLIC interrupt */
-	riscv_plic_irq_enable(irq_num);
-	riscv_plic_set_priority(irq_num, irq_prioriy);
+	riscv_ext_irq_enable(irq_num);
+	riscv_ext_irq_priority_set(irq_num, irq_prioriy, 0);
 }
 
 /* Set pin's pull-up/down resistor */

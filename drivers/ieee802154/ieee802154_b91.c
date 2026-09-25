@@ -26,7 +26,7 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 #include <zephyr/net/openthread.h>
 #endif
 
-#include <zephyr/drivers/interrupt_controller/riscv_plic.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 
 #include "ieee802154_b91.h"
 
@@ -380,8 +380,8 @@ static int b91_init(const struct device *dev)
 
 	/* init IRQs */
 	IRQ_CONNECT(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), b91_rf_isr, 0, 0);
-	riscv_plic_irq_enable(DT_INST_IRQN(0));
-	riscv_plic_set_priority(DT_INST_IRQN(0), DT_INST_IRQ(0, priority));
+	riscv_ext_irq_enable(DT_INST_IRQN(0));
+	riscv_ext_irq_priority_set(DT_INST_IRQN(0), DT_INST_IRQ(0, priority), 0);
 	rf_set_irq_mask(FLD_RF_IRQ_RX | FLD_RF_IRQ_TX);
 
 	/* init data variables */
@@ -501,7 +501,7 @@ static int b91_start(const struct device *dev)
 	if (!data.is_started) {
 		rf_set_rxmode();
 		delay_us(CONFIG_IEEE802154_B91_SET_TXRX_DELAY_US);
-		riscv_plic_irq_enable(DT_INST_IRQN(0));
+		riscv_ext_irq_enable(DT_INST_IRQN(0));
 		data.is_started = true;
 	}
 
@@ -515,7 +515,7 @@ static int b91_stop(const struct device *dev)
 
 	/* check if RF is already stopped */
 	if (data.is_started) {
-		riscv_plic_irq_disable(DT_INST_IRQN(0));
+		riscv_ext_irq_disable(DT_INST_IRQN(0));
 		rf_set_tx_rx_off();
 		delay_us(CONFIG_IEEE802154_B91_SET_TXRX_DELAY_US);
 		data.is_started = false;

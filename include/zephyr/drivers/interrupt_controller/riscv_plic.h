@@ -13,6 +13,8 @@
 #define ZEPHYR_INCLUDE_DRIVERS_INTERRUPT_CONTROLLER_RISCV_PLIC_H_
 
 #include <zephyr/device.h>
+#include <zephyr/toolchain.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 
 /**
  * @brief Mark interrupt as completed
@@ -24,32 +26,52 @@ void riscv_plic_irq_complete(uint32_t irq);
 /**
  * @brief Enable interrupt
  *
+ * @deprecated Use riscv_ext_irq_enable() instead.
+ *
  * @param irq Multi-level encoded interrupt ID
  */
-void riscv_plic_irq_enable(uint32_t irq);
+__deprecated static inline void riscv_plic_irq_enable(uint32_t irq)
+{
+	riscv_ext_irq_enable(irq);
+}
 
 /**
  * @brief Disable interrupt
  *
+ * @deprecated Use riscv_ext_irq_disable() instead.
+ *
  * @param irq Multi-level encoded interrupt ID
  */
-void riscv_plic_irq_disable(uint32_t irq);
+__deprecated static inline void riscv_plic_irq_disable(uint32_t irq)
+{
+	riscv_ext_irq_disable(irq);
+}
 
 /**
  * @brief Check if an interrupt is enabled
  *
+ * @deprecated Use riscv_ext_irq_is_enabled() instead.
+ *
  * @param irq Multi-level encoded interrupt ID
  * @return Returns true if interrupt is enabled, false otherwise
  */
-int riscv_plic_irq_is_enabled(uint32_t irq);
+__deprecated static inline int riscv_plic_irq_is_enabled(uint32_t irq)
+{
+	return riscv_ext_irq_is_enabled(irq);
+}
 
 /**
  * @brief Set interrupt priority
  *
+ * @deprecated Use riscv_ext_irq_priority_set() instead.
+ *
  * @param irq Multi-level encoded interrupt ID
  * @param prio interrupt priority
  */
-void riscv_plic_set_priority(uint32_t irq, uint32_t prio);
+__deprecated static inline void riscv_plic_set_priority(uint32_t irq, uint32_t prio)
+{
+	riscv_ext_irq_priority_set(irq, prio, 0);
+}
 
 /**
  * @brief Set IRQ affinity.

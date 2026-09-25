@@ -16,6 +16,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/devicetree/interrupt_controller.h>
 #include <zephyr/drivers/interrupt_controller/riscv_aia.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 #include <zephyr/drivers/interrupt_controller/riscv_aplic.h>
 #ifdef CONFIG_RISCV_APLIC_DIRECT
 #include <zephyr/drivers/interrupt_controller/riscv_aplic_direct.h>
@@ -45,7 +46,7 @@ static bool riscv_aia_src_is_valid(const struct device *aplic, uint32_t src)
 	return src > 0 && src <= riscv_aplic_get_num_sources(aplic);
 }
 
-void riscv_aia_irq_enable(uint32_t irq)
+void riscv_ext_irq_enable(uint32_t irq)
 {
 	const struct device *aplic = riscv_aplic_get_dev();
 	uint32_t src = riscv_aia_irq_to_src(irq);
@@ -62,7 +63,7 @@ void riscv_aia_irq_enable(uint32_t irq)
 	riscv_aplic_enable_src(aplic, src, true);
 }
 
-void riscv_aia_irq_disable(uint32_t irq)
+void riscv_ext_irq_disable(uint32_t irq)
 {
 	const struct device *aplic = riscv_aplic_get_dev();
 	uint32_t src = riscv_aia_irq_to_src(irq);
@@ -76,7 +77,7 @@ void riscv_aia_irq_disable(uint32_t irq)
 #endif
 }
 
-int riscv_aia_irq_is_enabled(uint32_t irq)
+int riscv_ext_irq_is_enabled(uint32_t irq)
 {
 	uint32_t src = riscv_aia_irq_to_src(irq);
 
@@ -107,6 +108,20 @@ void riscv_aia_set_priority(uint32_t irq, uint32_t prio)
 
 	riscv_aplic_set_priority(aplic, src, prio);
 #endif
+}
+
+/*
+ * Implements the riscv_ext_irq_priority_set() half of the external interrupt
+ * controller interface. The AIA takes the source mode (level or edge, and its
+ * polarity) from @p flags, which the PLIC has no equivalent for.
+ */
+void riscv_ext_irq_priority_set(uint32_t irq, uint32_t prio, uint32_t flags)
+{
+	if (flags != 0) {
+		riscv_aia_config_source(irq, flags);
+	}
+
+	riscv_aia_set_priority(irq, prio);
 }
 
 void riscv_aia_config_source(uint32_t irq, uint32_t mode)
@@ -151,7 +166,7 @@ void riscv_aia_route_to_hart(uint32_t irq, uint32_t hart)
 
 void riscv_aia_enable_source(uint32_t irq)
 {
-	riscv_aia_irq_enable(irq);
+	riscv_ext_irq_enable(irq);
 }
 
 void riscv_aia_dispatch_eiid(uint32_t eiid)

@@ -96,9 +96,9 @@ static int mbox_plic_set_enabled(const struct device *dev, uint32_t ch, bool ena
 	}
 
 	if (enable) {
-		riscv_plic_irq_enable(conf->irq_sources[ch]);
+		riscv_ext_irq_enable(conf->irq_sources[ch]);
 	} else {
-		riscv_plic_irq_disable(conf->irq_sources[ch]);
+		riscv_ext_irq_disable(conf->irq_sources[ch]);
 	}
 
 	return 0;

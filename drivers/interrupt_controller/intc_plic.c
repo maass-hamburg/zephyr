@@ -25,6 +25,7 @@
 #include <zephyr/shell/shell.h>
 
 #include <zephyr/sw_isr_table.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 #include <zephyr/drivers/interrupt_controller/riscv_plic.h>
 #include <zephyr/irq.h>
 
@@ -282,13 +283,12 @@ void riscv_plic_irq_complete(uint32_t irq)
  * @brief Enable a riscv PLIC-specific interrupt line
  *
  * This routine enables a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_enable is called by RISCV_SOC_COMMON_PRIVILEGED
- * arch_irq_enable function to enable external interrupts for
- * IRQS level == 2, whenever CONFIG_RISCV_HAS_PLIC variable is set.
+ * It implements the riscv_ext_irq_enable() half of the external interrupt
+ * controller interface, called by arch_irq_enable() for IRQs of level == 2.
  *
  * @param irq IRQ number to enable
  */
-void riscv_plic_irq_enable(uint32_t irq)
+void riscv_ext_irq_enable(uint32_t irq)
 {
 	const struct device *dev = get_plic_dev_from_irq(irq);
 	struct plic_data *data = dev->data;
@@ -303,13 +303,12 @@ void riscv_plic_irq_enable(uint32_t irq)
  * @brief Disable a riscv PLIC-specific interrupt line
  *
  * This routine disables a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_disable is called by RISCV_SOC_COMMON_PRIVILEGED
- * arch_irq_disable function to disable external interrupts, for
- * IRQS level == 2, whenever CONFIG_RISCV_HAS_PLIC variable is set.
+ * It implements the riscv_ext_irq_disable() half of the external interrupt
+ * controller interface, called by arch_irq_disable() for IRQs of level == 2.
  *
  * @param irq IRQ number to disable
  */
-void riscv_plic_irq_disable(uint32_t irq)
+void riscv_ext_irq_disable(uint32_t irq)
 {
 	const struct device *dev = get_plic_dev_from_irq(irq);
 	struct plic_data *data = dev->data;
@@ -349,7 +348,7 @@ static int local_irq_is_enabled(const struct device *dev, uint32_t local_irq)
  *
  * @return 1 or 0
  */
-int riscv_plic_irq_is_enabled(uint32_t irq)
+int riscv_ext_irq_is_enabled(uint32_t irq)
 {
 	const struct device *dev = get_plic_dev_from_irq(irq);
 	struct plic_data *data = dev->data;
@@ -367,14 +366,17 @@ int riscv_plic_irq_is_enabled(uint32_t irq)
  * @brief Set priority of a riscv PLIC-specific interrupt line
  *
  * This routine set the priority of a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_set_prio is called by riscv arch_irq_priority_set to set
- * the priority of an interrupt whenever CONFIG_RISCV_HAS_PLIC variable is set.
+ * It implements the riscv_ext_irq_priority_set() half of the external interrupt
+ * controller interface. The PLIC has nothing to configure from @p flags.
  *
  * @param irq IRQ number for which to set priority
  * @param priority Priority of IRQ to set to
+ * @param flags Interrupt flags, unused
  */
-void riscv_plic_set_priority(uint32_t irq, uint32_t priority)
+void riscv_ext_irq_priority_set(uint32_t irq, uint32_t priority, uint32_t flags)
 {
+	ARG_UNUSED(flags);
+
 	const struct device *dev = get_plic_dev_from_irq(irq);
 	const struct plic_config *config = dev->config;
 	const uint32_t local_irq = irq_from_level_2(irq);

@@ -15,6 +15,7 @@
 #include <zephyr/arch/cpu.h>
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/interrupt_controller/riscv_aia.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 #include <zephyr/drivers/interrupt_controller/riscv_aplic_direct.h>
 #include <zephyr/irq.h>
 #include <zephyr/irq_multilevel.h>
@@ -258,7 +259,7 @@ ZTEST(aplic_direct, test_aplic_direct_random_priority)
 
 ZTEST(aplic_direct, test_aplic_direct_verify_interrupt_enabled)
 {
-	int ret = riscv_aia_irq_is_enabled(TEST_IRQ_ID_L2);
+	int ret = riscv_ext_irq_is_enabled(TEST_IRQ_ID_L2);
 
 	zassert_equal(ret, 1, "Expected test IRQ to be enabled");
 }
@@ -268,8 +269,8 @@ ZTEST(aplic_direct, test_aplic_direct_verify_interrupt_disabled)
 	int ret = -1;
 
 	/* In-bounds check */
-	riscv_aia_irq_disable(TEST_IRQ_ID_L2);
-	ret = riscv_aia_irq_is_enabled(TEST_IRQ_ID_L2);
+	riscv_ext_irq_disable(TEST_IRQ_ID_L2);
+	ret = riscv_ext_irq_is_enabled(TEST_IRQ_ID_L2);
 	zassert_equal(ret, 0, "Expected test IRQ to be disabled");
 }
 

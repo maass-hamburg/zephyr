@@ -11,7 +11,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/irq.h>
-#include <zephyr/drivers/interrupt_controller/riscv_plic.h>
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
 
 
 /* Driver dts compatibility: telink,b91_uart */
@@ -569,8 +569,8 @@ static DEVICE_API(uart, uart_b91_driver_api) = {
 			    uart_b91_irq_handler,				    \
 			    DEVICE_DT_INST_GET(n), 0);				    \
 										    \
-		riscv_plic_irq_enable(DT_INST_IRQN(n));				    \
-		riscv_plic_set_priority(DT_INST_IRQN(n), DT_INST_IRQ(n, priority)); \
+		riscv_ext_irq_enable(DT_INST_IRQN(n));				    \
+		riscv_ext_irq_priority_set(DT_INST_IRQN(n), DT_INST_IRQ(n, priority), 0); \
 	}
 
 DT_INST_FOREACH_STATUS_OKAY(UART_B91_INIT)

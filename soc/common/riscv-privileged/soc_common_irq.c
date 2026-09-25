@@ -12,9 +12,9 @@
 #include <zephyr/irq.h>
 #include <zephyr/irq_multilevel.h>
 
-#include <zephyr/drivers/interrupt_controller/riscv_plic.h>
-#if defined(CONFIG_RISCV_HAS_AIA)
-#include <zephyr/drivers/interrupt_controller/riscv_aia.h>
+#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_AIA)
+#include <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>
+#define HAS_EXT_IRQ_CONTROLLER 1
 #endif
 
 /*
@@ -25,18 +25,9 @@
 
 void arch_irq_enable(unsigned int irq)
 {
-#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_AIA)
-	unsigned int level = irq_get_level(irq);
-#endif
-
-#if defined(CONFIG_RISCV_HAS_PLIC)
-	if (level == 2) {
-		riscv_plic_irq_enable(irq);
-		return;
-	}
-#elif defined(CONFIG_RISCV_HAS_AIA)
-	if (level == 2) {
-		riscv_aia_irq_enable(irq);
+#ifdef HAS_EXT_IRQ_CONTROLLER
+	if (irq_get_level(irq) == 2) {
+		riscv_ext_irq_enable(irq);
 		return;
 	}
 #endif
@@ -68,18 +59,9 @@ void arch_irq_enable(unsigned int irq)
 
 void arch_irq_disable(unsigned int irq)
 {
-#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_AIA)
-	unsigned int level = irq_get_level(irq);
-#endif
-
-#if defined(CONFIG_RISCV_HAS_PLIC)
-	if (level == 2) {
-		riscv_plic_irq_disable(irq);
-		return;
-	}
-#elif defined(CONFIG_RISCV_HAS_AIA)
-	if (level == 2) {
-		riscv_aia_irq_disable(irq);
+#ifdef HAS_EXT_IRQ_CONTROLLER
+	if (irq_get_level(irq) == 2) {
+		riscv_ext_irq_disable(irq);
 		return;
 	}
 #endif
@@ -113,17 +95,9 @@ int arch_irq_is_enabled(unsigned int irq)
 {
 	unsigned long ie;
 
-#if defined(CONFIG_RISCV_HAS_PLIC) || defined(CONFIG_RISCV_HAS_AIA)
-	unsigned int level = irq_get_level(irq);
-#endif
-
-#if defined(CONFIG_RISCV_HAS_PLIC)
-	if (level == 2) {
-		return riscv_plic_irq_is_enabled(irq);
-	}
-#elif defined(CONFIG_RISCV_HAS_AIA)
-	if (level == 2) {
-		return riscv_aia_irq_is_enabled(irq);
+#ifdef HAS_EXT_IRQ_CONTROLLER
+	if (irq_get_level(irq) == 2) {
+		return riscv_ext_irq_is_enabled(irq);
 	}
 #endif
 
@@ -150,34 +124,14 @@ int arch_irq_is_enabled(unsigned int irq)
 	return !!(ie & (1UL << irq));
 }
 
-#if defined(CONFIG_RISCV_HAS_PLIC)
+#ifdef HAS_EXT_IRQ_CONTROLLER
 void z_riscv_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
 {
-	unsigned int level = irq_get_level(irq);
-
-	if (level == 2) {
-		riscv_plic_set_priority(irq, prio);
+	if (irq_get_level(irq) == 2) {
+		riscv_ext_irq_priority_set(irq, prio, flags);
 	}
 }
-#elif defined(CONFIG_RISCV_HAS_AIA)
-void z_riscv_irq_priority_set(unsigned int irq, unsigned int prio, uint32_t flags)
-{
-	unsigned int level = irq_get_level(irq);
-
-	if (level != 2) {
-		return;
-	}
-
-	if (flags != 0) {
-		riscv_aia_config_source(irq, flags);
-	}
-
-	/* Set priority if direct delivery mode is enabled.
-	 * AIA-IMSIC priority is handled via IMSIC EITHRESHOLD or EIID ordering.
-	 */
-	riscv_aia_set_priority(irq, prio);
-}
-#endif /* CONFIG_RISCV_HAS_PLIC */
+#endif /* HAS_EXT_IRQ_CONTROLLER */
 
 #endif /* !CONFIG_RISCV_HAS_CLIC */
 

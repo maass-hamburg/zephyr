@@ -20,31 +20,13 @@
 #include <zephyr/drivers/interrupt_controller/riscv_aplic.h>
 #include <zephyr/drivers/interrupt_controller/riscv_imsic.h>
 
-/**
- * @brief Enable an AIA interrupt source.
- *
- * Enables the EIID in IMSIC and configures/enables the APLIC source.
- *
- * @param irq Multi-level encoded interrupt ID.
+/*
+ * Enabling, disabling and querying an AIA interrupt source, and setting its
+ * priority, are done through the generic external interrupt controller
+ * interface in <zephyr/drivers/interrupt_controller/riscv_ext_irq.h>, which
+ * this driver implements. The declarations below are the parts of the AIA that
+ * have no PLIC equivalent.
  */
-void riscv_aia_irq_enable(uint32_t irq);
-
-/**
- * @brief Disable an AIA interrupt source.
- *
- * Disables both the IMSIC EIID and the APLIC source.
- *
- * @param irq Multi-level encoded interrupt ID.
- */
-void riscv_aia_irq_disable(uint32_t irq);
-
-/**
- * @brief Check if an AIA interrupt source is enabled.
- *
- * @param irq Multi-level encoded interrupt ID.
- * @return Non-zero if enabled, 0 if disabled.
- */
-int riscv_aia_irq_is_enabled(uint32_t irq);
 
 /**
  * @brief Set priority for an AIA interrupt source.
