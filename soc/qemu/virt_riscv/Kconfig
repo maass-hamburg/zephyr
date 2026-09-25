@@ -10,6 +10,6 @@ config SOC_FAMILY_QEMU_VIRT_RISCV
 
 if SOC_FAMILY_QEMU_VIRT_RISCV
 
-rsource "*/Kconfig"
+orsource "*/Kconfig"
 
 endif # SOC_FAMILY_QEMU_VIRT_RISCV

@@ -4,7 +4,6 @@
 config SOC_SERIES_NITROGEN
 	select RISCV
 	select RISCV_PRIVILEGED
-	select RISCV_HAS_PLIC
 	select INCLUDE_RESET_VECTOR
 	select PINCTRL
 

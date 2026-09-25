@@ -21,24 +21,6 @@ config SOC_SERIES_AE350
 
 if SOC_SERIES_AE350
 
-choice SOC_AE350_INTERRUPT_TYPE
-	prompt "Base interrupt type"
-	depends on SOC_AE350
-	default SOC_AE350_INTERRUPT_TYPE_PLIC
-
-config SOC_AE350_INTERRUPT_TYPE_PLIC
-	bool "PLIC"
-	select RISCV_HAS_PLIC
-
-config SOC_AE350_INTERRUPT_TYPE_CLIC
-	bool "CLIC"
-	select RISCV_HAS_CLIC
-	select CLIC_SMCLICSHV_EXT if RISCV_VECTORED_MODE
-	select CLIC_SMCLICCONFIG_EXT
-	select LEGACY_CLIC_MEMORYMAP_ACCESS
-
-endchoice
-
 config SOC_ANDES_V5_IOCP
 	bool "Andes V5 I/O Coherence Port (IOCP)"
 	depends on DCACHE

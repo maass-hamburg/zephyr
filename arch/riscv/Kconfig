@@ -333,24 +333,38 @@ config RISCV_SOC_OFFSETS
 config RISCV_HAS_PLIC
 	bool
 	depends on RISCV_PRIVILEGED
+	default y if PLIC
 	help
 	  Does the SOC provide support for a Platform Level Interrupt Controller (PLIC).
+
+	  This is enabled automatically when the devicetree enables a PLIC the driver
+	  supports.
 
 config RISCV_HAS_CLIC
 	bool
 	depends on RISCV_PRIVILEGED
+	# The bflb E24 cores drive their 'sifive,clic-draft' CLIC from SoC code rather
+	# than from a CLIC driver, so they have no driver symbol to follow.
+	default y if CLIC || NRFX_CLIC || DT_HAS_SIFIVE_CLIC_DRAFT_ENABLED
 	select RISCV_ALWAYS_SWITCH_THROUGH_ECALL if MULTITHREADING
 	select CLIC_SUPPORT_INTERRUPT_LEVEL if !NRFX_CLIC
 	help
 	  Does the SOC provide support for a Core-Local Interrupt Controller (CLIC).
 
+	  This is enabled automatically when the devicetree enables a CLIC one of the
+	  CLIC drivers supports, or a 'sifive,clic-draft' one.
+
 config RISCV_HAS_AIA
 	bool
 	depends on RISCV_PRIVILEGED
+	default y if RISCV_AIA
 	help
 	  Does the SOC provide support for the Advanced Interrupt Architecture (AIA),
 	  which includes APLIC (Advanced Platform-Level Interrupt Controller) and
 	  IMSIC (Incoming Message-Signaled Interrupt Controller).
+
+	  This is enabled automatically when the devicetree enables an APLIC or IMSIC
+	  the driver supports.
 
 config CLIC_SUPPORT_INTERRUPT_LEVEL
 	bool

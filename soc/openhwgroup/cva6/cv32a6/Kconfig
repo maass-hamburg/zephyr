@@ -5,7 +5,6 @@
 config SOC_CV32A6
 	select RISCV
 	select RISCV_PRIVILEGED
-	select RISCV_HAS_PLIC
 	select USE_SWITCH_SUPPORTED
 	select USE_SWITCH
 	select SCHED_IPI_SUPPORTED if SMP

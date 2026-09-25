@@ -6,9 +6,6 @@ if SOC_SERIES_SY1XX
 config RISCV_PMP
 	default n
 
-config RISCV_HAS_CLIC
-	default n
-
 config RISCV_VECTORED_MODE
 	default y
 

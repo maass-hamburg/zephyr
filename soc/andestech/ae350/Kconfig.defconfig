@@ -39,6 +39,15 @@ endif # RISCV_HAS_PLIC
 
 if RISCV_HAS_CLIC
 
+config CLIC_SMCLICSHV_EXT
+	default y if RISCV_VECTORED_MODE
+
+config CLIC_SMCLICCONFIG_EXT
+	default y
+
+config LEGACY_CLIC_MEMORYMAP_ACCESS
+	default y
+
 config NUM_IRQS
 	default 48
 
