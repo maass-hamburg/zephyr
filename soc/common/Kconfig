@@ -1,8 +1,0 @@
-# Copyright (c) 2024 Nordic Semiconductor ASA
-# SPDX-License-Identifier: Apache-2.0
-
-if RISCV_SOC_COMMON_PRIVILEGED
-
-rsource "riscv-privileged/Kconfig"
-
-endif # RISCV_SOC_COMMON_PRIVILEGED

@@ -32,40 +32,6 @@ SECTION_FUNC(vectors, __start)
 #endif
 
 #if defined(CONFIG_RISCV_VECTORED_MODE)
-#if defined(CONFIG_RISCV_HAS_CLIC)
-
-	/*
-	 * CLIC vectored mode
-	 *
-	 * CLIC vectored mode uses mtvec exclusively for exception handling and
-	 * mtvec.base must be aligned to 64 bytes (this is done using
-	 * CONFIG_RISCV_TRAP_HANDLER_ALIGNMENT)
-	 */
-#if defined(CONFIG_USE_ISR_WRAPPER)
-	la t0, _isr_wrapper
-#else
-	add t0, zero, zero
-#endif
-	addi t0, t0, 0x03 /* Enable CLIC vectored mode by setting LSB */
-	csrw mtvec, t0
-
-	/*
-	 * CLIC vectored mode has a similar concept to CLINT vectored mode,
-	 * where an interrupt vector table is used for specific interrupts.
-	 * However, in CLIC vectored mode, the handler table contains the
-	 * address of the interrupt handler instead of an opcode containing a
-	 * jump instruction, this is done by leveraging
-	 * CONFIG_IRQ_VECTOR_TABLE_JUMP_BY_ADDRESS.
-	 * When an interrupt occurs in CLIC vectored mode, the address of the
-	 * handler entry from the vector table is loaded and then jumped to in
-	 * hardware. This time mtvt is used as the base address for the
-	 * interrupt table.
-	 */
-	la t0, _irq_vector_table
-	csrw 0x307, t0 /* mtvt */
-
-#else /* !CONFIG_RISCV_HAS_CLIC */
-
 	/*
 	 * CLINT vectored mode
 	 *
@@ -86,17 +52,7 @@ SECTION_FUNC(vectors, __start)
 	csrw mtvec, t0
 #endif
 
-#endif /* CONFIG_RISCV_HAS_CLIC */
-
 #else /* !CONFIG_RISCV_VECTORED_MODE */
-
-#if defined(CONFIG_RISCV_HAS_CLIC) && !defined(CONFIG_LEGACY_CLIC)
-
-	la t0, _isr_wrapper
-	addi t0, t0, 0x03 /* Set mode bits to 3, signifying CLIC. Everything else is reserved. */
-	csrw mtvec, t0
-
-#else /* !CONFIG_RISCV_HAS_CLIC || CONFIG_LEGACY_CLIC */
 
 	/*
 	 * CLINT direct mode
@@ -110,8 +66,6 @@ SECTION_FUNC(vectors, __start)
 #else
 	csrw mtvec, t0
 #endif
-
-#endif /* CONFIG_RISCV_HAS_CLIC&& !CONFIG_LEGACY_CLIC */
 
 #endif /* CONFIG_RISCV_VECTORED_MODE */
 

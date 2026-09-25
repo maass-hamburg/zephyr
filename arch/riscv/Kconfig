@@ -146,13 +146,15 @@ config RISCV_SOC_COMMON_PRIVILEGED
 	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	help
 	  Use the common SoC support layer for SoCs implementing the RISC-V
-	  privileged ISA, found in soc/common/riscv-privileged. It provides the
-	  reset vector, the weak __soc_handle_irq, and the arch_irq_*() operations
-	  on the mie/mip CSRs, dispatching to a PLIC, CLIC or AIA where the SoC has
-	  one. It also makes RISCV_VECTORED_MODE available.
+	  privileged ISA whose interrupts are handled in CLINT mode, found in
+	  soc/common/riscv-privileged. It provides the reset vector, the weak
+	  __soc_handle_irq, and the arch_irq_*() operations on the mie/mip CSRs,
+	  dispatching to a PLIC or an AIA where the SoC has one.
 
-	  A SoC that implements the privileged ISA but manages interrupts itself,
-	  for instance because it has a custom interrupt controller, should not
+	  A SoC with a CLIC does not need it: the CLIC drivers provide the
+	  counterpart of the layer, brought in by RISCV_HAS_CLIC. A SoC that
+	  implements the privileged ISA but manages interrupts itself, for
+	  instance because it has a custom interrupt controller, should not
 	  select this and must provide its own arch_irq_*() implementation.
 
 config RISCV_PRIVILEGED
@@ -359,17 +361,23 @@ config RISCV_HAS_PLIC
 
 config RISCV_HAS_CLIC
 	bool
-	depends on RISCV_SOC_COMMON_PRIVILEGED
 	# The bflb E24 cores drive their 'sifive,clic-draft' CLIC from SoC code rather
 	# than from a CLIC driver, so they have no driver symbol to follow.
 	default y if CLIC || NRFX_CLIC || DT_HAS_SIFIVE_CLIC_DRAFT_ENABLED
 	select RISCV_ALWAYS_SWITCH_THROUGH_ECALL if MULTITHREADING
 	select CLIC_SUPPORT_INTERRUPT_LEVEL if !NRFX_CLIC
+	# Like RISCV_SOC_COMMON_PRIVILEGED, for the reset vector this brings in.
+	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	help
 	  Does the SOC provide support for a Core-Local Interrupt Controller (CLIC).
 
 	  This is enabled automatically when the devicetree enables a CLIC one of the
 	  CLIC drivers supports, or a 'sifive,clic-draft' one.
+
+	  A CLIC takes over the reset vector and the interrupt management of the
+	  SoC, so this brings in their CLIC implementation from
+	  drivers/interrupt_controller in place of the RISCV_SOC_COMMON_PRIVILEGED
+	  layer, which such a SoC does not need.
 
 config RISCV_HAS_AIA
 	bool
@@ -382,6 +390,12 @@ config RISCV_HAS_AIA
 
 	  This is enabled automatically when the devicetree enables an APLIC or IMSIC
 	  the driver supports.
+
+config RISCV_VECTORED_MODE
+	bool "Should the SOC use vectored mode"
+	depends on RISCV_SOC_COMMON_PRIVILEGED || RISCV_HAS_CLIC
+	help
+	  Should the SOC use vectored mode.
 
 config CLIC_SUPPORT_INTERRUPT_LEVEL
 	bool
@@ -786,7 +800,7 @@ config RISCV_TRAP_HANDLER_ALIGNMENT
 	  The minimum alignment is 4 bytes according to the Spec.
 
 config GEN_IRQ_VECTOR_TABLE
-	select RISCV_VECTORED_MODE if RISCV_SOC_COMMON_PRIVILEGED
+	select RISCV_VECTORED_MODE if RISCV_SOC_COMMON_PRIVILEGED || RISCV_HAS_CLIC
 
 config ARCH_HAS_SINGLE_THREAD_SUPPORT
 	default y if !SMP

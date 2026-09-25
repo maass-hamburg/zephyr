@@ -108,3 +108,39 @@ void arch_isr_direct_pm(void)
 	irq_unlock(key);
 }
 #endif
+
+#ifdef CONFIG_RISCV_SOC_INTERRUPT_INIT
+/*
+ * Default SoC interrupt initialization, for SoCs that have nothing to do
+ * beyond what the architecture provides.
+ */
+__weak void soc_interrupt_init(void)
+{
+	/* ensure that all interrupts are disabled */
+	(void)arch_irq_lock();
+
+	/*
+	 * A CLIC holds the interrupt enables and pending bits itself, the mie
+	 * and mip CSRs are not in use then.
+	 */
+	if (IS_ENABLED(CONFIG_RISCV_HAS_CLIC)) {
+		return;
+	}
+
+#ifdef CONFIG_RISCV_S_MODE
+	csr_write(sie, 0);
+#if !defined(CONFIG_64BIT) && defined(CONFIG_RISCV_ISA_EXT_SSAIA)
+	csr_write(sieh, 0);
+#endif
+	/* sip.STIP is read-only from S-mode; clearing sie is sufficient */
+#else
+	csr_write(mie, 0);
+	csr_write(mip, 0);
+#if !defined(CONFIG_64BIT) && defined(CONFIG_RISCV_ISA_EXT_SMAIA)
+	/* mie/mip are 64 bits in AIA; upper 32 bits are accessed using mieh/miph CSR for RV32 */
+	csr_write(mieh, 0);
+	csr_write(miph, 0);
+#endif
+#endif
+}
+#endif /* CONFIG_RISCV_SOC_INTERRUPT_INIT */
