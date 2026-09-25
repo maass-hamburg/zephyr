@@ -6,6 +6,6 @@
 
 config RISCV_VECTORED_MODE
 	bool "Should the SOC use vectored mode"
-	depends on RISCV_PRIVILEGED
+	depends on RISCV_SOC_COMMON_PRIVILEGED
 	help
 	  Should the SOC use vectored mode.

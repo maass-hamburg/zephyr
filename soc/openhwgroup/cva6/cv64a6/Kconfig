@@ -5,7 +5,7 @@
 # Shared properties
 config SOC_CV64A6
 	select RISCV
-	select RISCV_PRIVILEGED
+	select RISCV_SOC_COMMON_PRIVILEGED
 	select USE_SWITCH_SUPPORTED
 	select USE_SWITCH
 	select SCHED_IPI_SUPPORTED if SMP

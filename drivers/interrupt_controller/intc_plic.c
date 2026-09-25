@@ -265,7 +265,7 @@ static void plic_irq_enable_set_state(uint32_t irq, bool enable)
  * @brief Clear a riscv PLIC-specific interrupt line
  *
  * This routine clear a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_complete is called by RISCV_PRIVILEGED
+ * riscv_plic_irq_complete is called by RISCV_SOC_COMMON_PRIVILEGED
  *
  * @param irq IRQ number to enable
  */
@@ -282,7 +282,7 @@ void riscv_plic_irq_complete(uint32_t irq)
  * @brief Enable a riscv PLIC-specific interrupt line
  *
  * This routine enables a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_enable is called by RISCV_PRIVILEGED
+ * riscv_plic_irq_enable is called by RISCV_SOC_COMMON_PRIVILEGED
  * arch_irq_enable function to enable external interrupts for
  * IRQS level == 2, whenever CONFIG_RISCV_HAS_PLIC variable is set.
  *
@@ -303,7 +303,7 @@ void riscv_plic_irq_enable(uint32_t irq)
  * @brief Disable a riscv PLIC-specific interrupt line
  *
  * This routine disables a RISCV PLIC-specific interrupt line.
- * riscv_plic_irq_disable is called by RISCV_PRIVILEGED
+ * riscv_plic_irq_disable is called by RISCV_SOC_COMMON_PRIVILEGED
  * arch_irq_disable function to disable external interrupts, for
  * IRQS level == 2, whenever CONFIG_RISCV_HAS_PLIC variable is set.
  *

@@ -16,4 +16,4 @@ config SOC_THEJAS32
 
 	  The SoC follows the RISC-V privileged specification for trap handling but
 	  uses a custom (non-PLIC) interrupt controller, so it provides its own
-	  interrupt management instead of selecting RISCV_PRIVILEGED.
+	  interrupt management instead of selecting RISCV_SOC_COMMON_PRIVILEGED.

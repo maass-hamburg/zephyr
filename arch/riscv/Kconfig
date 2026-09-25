@@ -141,11 +141,28 @@ config INCLUDE_RESET_VECTOR
 	  jumps to `__initialize` directly. Otherwise a SOC needs to provide its
 	  custom `__reset` routine.
 
-config RISCV_PRIVILEGED
+config RISCV_SOC_COMMON_PRIVILEGED
 	bool
 	select ARCH_HAS_RAMFUNC_SUPPORT if XIP
 	help
-	  Option selected by SoCs implementing the RISC-V privileged ISA.
+	  Use the common SoC support layer for SoCs implementing the RISC-V
+	  privileged ISA, found in soc/common/riscv-privileged. It provides the
+	  reset vector, the weak __soc_handle_irq, and the arch_irq_*() operations
+	  on the mie/mip CSRs, dispatching to a PLIC, CLIC or AIA where the SoC has
+	  one. It also makes RISCV_VECTORED_MODE available.
+
+	  A SoC that implements the privileged ISA but manages interrupts itself,
+	  for instance because it has a custom interrupt controller, should not
+	  select this and must provide its own arch_irq_*() implementation.
+
+config RISCV_PRIVILEGED
+	bool
+	select DEPRECATED
+	select RISCV_SOC_COMMON_PRIVILEGED
+	help
+	  Deprecated name for RISCV_SOC_COMMON_PRIVILEGED. It never stated that a
+	  SoC implements the privileged ISA, only that it uses the common support
+	  layer for such SoCs, so select RISCV_SOC_COMMON_PRIVILEGED instead.
 
 config RISCV_SOC_HAS_ISR_STACKING
 	bool
@@ -332,7 +349,7 @@ config RISCV_SOC_OFFSETS
 
 config RISCV_HAS_PLIC
 	bool
-	depends on RISCV_PRIVILEGED
+	depends on RISCV_SOC_COMMON_PRIVILEGED
 	default y if PLIC
 	help
 	  Does the SOC provide support for a Platform Level Interrupt Controller (PLIC).
@@ -342,7 +359,7 @@ config RISCV_HAS_PLIC
 
 config RISCV_HAS_CLIC
 	bool
-	depends on RISCV_PRIVILEGED
+	depends on RISCV_SOC_COMMON_PRIVILEGED
 	# The bflb E24 cores drive their 'sifive,clic-draft' CLIC from SoC code rather
 	# than from a CLIC driver, so they have no driver symbol to follow.
 	default y if CLIC || NRFX_CLIC || DT_HAS_SIFIVE_CLIC_DRAFT_ENABLED
@@ -356,7 +373,7 @@ config RISCV_HAS_CLIC
 
 config RISCV_HAS_AIA
 	bool
-	depends on RISCV_PRIVILEGED
+	depends on RISCV_SOC_COMMON_PRIVILEGED
 	default y if RISCV_AIA
 	help
 	  Does the SOC provide support for the Advanced Interrupt Architecture (AIA),
@@ -769,7 +786,7 @@ config RISCV_TRAP_HANDLER_ALIGNMENT
 	  The minimum alignment is 4 bytes according to the Spec.
 
 config GEN_IRQ_VECTOR_TABLE
-	select RISCV_VECTORED_MODE if RISCV_PRIVILEGED
+	select RISCV_VECTORED_MODE if RISCV_SOC_COMMON_PRIVILEGED
 
 config ARCH_HAS_SINGLE_THREAD_SUPPORT
 	default y if !SMP

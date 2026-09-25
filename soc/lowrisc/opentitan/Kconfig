@@ -5,7 +5,7 @@ config SOC_OPENTITAN
 	select ATOMIC_OPERATIONS_C
 	select INCLUDE_RESET_VECTOR
 	select RISCV
-	select RISCV_PRIVILEGED
+	select RISCV_SOC_COMMON_PRIVILEGED
 	select RISCV_SOC_HAS_GP_RELATIVE_ADDRESSING
 	# OpenTitan Ibex core mtvec mode is read-only / forced to vectored mode.
 	select RISCV_VECTORED_MODE

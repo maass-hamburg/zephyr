@@ -4,7 +4,7 @@
 config SOC_GANGA
 	select 64BIT
 	select RISCV
-	select RISCV_PRIVILEGED
+	select RISCV_SOC_COMMON_PRIVILEGED
 	select RISCV_ISA_RV64I
 	select RISCV_ISA_EXT_M
 	select RISCV_ISA_EXT_A
