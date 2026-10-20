@@ -157,6 +157,10 @@ static int eth_fake_set_config(const struct device *dev,
 
 	switch (type) {
 	case ETHERNET_CONFIG_TYPE_MAC_ADDRESS:
+		if (net_eth_is_addr_multicast((struct net_eth_addr *)&config->mac_address)) {
+			return -EINVAL;
+		}
+
 		memcpy(ctx->mac_address, config->mac_address.addr, 6);
 		break;
 	case ETHERNET_CONFIG_TYPE_QAV_PARAM:
@@ -584,6 +588,37 @@ ZTEST(net_ethernet_mgmt, test_change_mac)
 {
 	change_mac_when_up();
 	change_mac_when_down();
+}
+
+ZTEST(net_ethernet_mgmt, test_set_link_addr)
+{
+	static const uint8_t new_mac[] = { 0x02, 0x00, 0x5E, 0x00, 0x53, 0x42 };
+	static const uint8_t mcast_mac[] = { 0x01, 0x00, 0x5E, 0x00, 0x53, 0x43 };
+	struct net_if *iface = default_iface;
+	struct eth_fake_context *ctx = net_if_get_device(iface)->data;
+	uint8_t old_mac[NET_ETH_ADDR_LEN];
+	int ret;
+
+	net_if_down(iface);
+
+	ret = net_if_set_link_addr(iface, new_mac, sizeof(new_mac), NET_LINK_ETHERNET);
+	zassert_equal(ret, 0, "unable to set link address (%d)", ret);
+	zassert_mem_equal(ctx->mac_address, new_mac, sizeof(new_mac),
+			  "driver did not get the new MAC address");
+	zassert_mem_equal(net_if_get_link_addr(iface)->addr, new_mac, sizeof(new_mac),
+			  "link address not changed");
+
+	memcpy(old_mac, net_if_get_link_addr(iface)->addr, sizeof(old_mac));
+
+	ret = net_if_set_link_addr(iface, mcast_mac, sizeof(mcast_mac), NET_LINK_ETHERNET);
+	zassert_equal(ret, -EINVAL, "driver error not returned (%d)", ret);
+	zassert_mem_equal(net_if_get_link_addr(iface)->addr, old_mac, sizeof(old_mac),
+			  "link address changed although the driver failed");
+
+	net_if_up(iface);
+
+	ret = net_if_set_link_addr(iface, new_mac, sizeof(new_mac), NET_LINK_ETHERNET);
+	zassert_equal(ret, -EPERM, "link address set on a running iface (%d)", ret);
 }
 
 ZTEST(net_ethernet_mgmt, test_change_qav_params)
