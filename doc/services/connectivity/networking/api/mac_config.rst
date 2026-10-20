@@ -129,22 +129,27 @@ Changing the MAC address at runtime
 ===================================
 
 Applications that need to set MAC addresses dynamically (for example to adopt an address obtained
-from a management interface) need to enable the networking management API with
-:kconfig:option:`CONFIG_NET_MGMT` and use :c:macro:`net_mgmt` with
-:c:macro:`NET_REQUEST_ETHERNET_SET_MAC_ADDRESS`.
-The request internally calls the driver's :c:func:`ethernet_api.set_config` implementation.
+from a management interface) use :c:func:`net_if_set_link_addr` while the interface is down.
+For an Ethernet interface it calls the driver's :c:func:`ethernet_api.set_config` implementation
+with ``ETHERNET_CONFIG_TYPE_MAC_ADDRESS`` and only stores the new address if the driver accepts
+it. Drivers that do not implement it keep the address in software only.
 
 .. code-block:: c
 
    static int app_set_mac_address(const struct device *dev)
    {
        struct net_if *iface = net_if_lookup_by_dev(dev);
-       struct ethernet_req_params params = {
-           .mac_address = { { 0x02, 0x00, 0x5E, 0x01, 0x02, 0x03 } },
-       };
+       static const uint8_t mac[] = { 0x02, 0x00, 0x5E, 0x01, 0x02, 0x03 };
 
        /* Make sure the iface is down */
 
-       return net_mgmt(NET_REQUEST_ETHERNET_SET_MAC_ADDRESS, iface,
-                       &params, sizeof(params));
+       return net_if_set_link_addr(iface, mac, sizeof(mac), NET_LINK_ETHERNET);
    }
+
+The :c:macro:`NET_REQUEST_ETHERNET_SET_MAC_ADDRESS` network management request does the same.
+
+Drivers only call :c:func:`net_if_set_link_addr` to register the initial address, normally from
+``iface_init``. They never call it at runtime, and in particular not from their
+``ETHERNET_CONFIG_TYPE_MAC_ADDRESS`` handler of :c:func:`ethernet_api.set_config`. Because the
+initial registration goes through the same path, that handler is also called at that point, so it
+must work once the hardware is set up.
