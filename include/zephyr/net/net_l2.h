@@ -15,6 +15,7 @@
 #include <zephyr/device.h>
 #include <zephyr/net_buf.h>
 #include <zephyr/net/net_ip.h>
+#include <zephyr/net/net_linkaddr.h>
 #include <zephyr/net/capture.h>
 #include <zephyr/sys/iterable_sections.h>
 
@@ -87,6 +88,16 @@ struct net_l2 {
 	int (*alloc)(struct net_if *iface, struct net_pkt *pkt,
 		     size_t size, enum net_ip_protocol proto,
 		     k_timeout_t timeout);
+
+	/**
+	 * Optional function for applying a new link address to the lower
+	 * layer, for example by programming it into the hardware. It is
+	 * called by net_if_set_link_addr() before the address is stored in
+	 * the network interface. If it returns <0, the link address of the
+	 * network interface is not changed.
+	 */
+	int (*set_link_addr)(struct net_if *iface, const uint8_t *addr,
+			     uint8_t len, enum net_link_type type);
 };
 
 /** @cond INTERNAL_HIDDEN */

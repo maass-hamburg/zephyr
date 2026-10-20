@@ -611,11 +611,26 @@ int net_if_set_link_addr_locked(struct net_if *iface,
 				const uint8_t *addr, uint8_t len,
 				enum net_link_type type)
 {
+	struct net_in6_addr old_iid;
+	bool rm_old_iid = false;
 	int ret;
 
 	net_if_lock(iface);
 
+	/* The IPv6 link local address generated from the old link address
+	 * needs to be removed when the link address changes.
+	 */
+	if (IS_ENABLED(CONFIG_NET_NATIVE_IPV6) && IS_ENABLED(CONFIG_NET_IPV6_IID_EUI_64) &&
+	    net_if_get_link_addr(iface)->len > 0) {
+		net_ipv6_addr_create_iid(&old_iid, net_if_get_link_addr(iface));
+		rm_old_iid = true;
+	}
+
 	ret = net_if_set_link_addr_unlocked(iface, addr, len, type);
+	if (ret == 0 && rm_old_iid) {
+		/* Not an error if the address is not found */
+		(void)net_if_ipv6_addr_rm(iface, &old_iid);
+	}
 
 	net_if_unlock(iface);
 

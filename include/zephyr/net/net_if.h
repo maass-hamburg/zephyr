@@ -1536,6 +1536,13 @@ static inline int net_if_set_link_addr_unlocked(struct net_if *iface,
 		return -EINVAL;
 	}
 
+	if (net_if_l2(iface) != NULL && net_if_l2(iface)->set_link_addr != NULL) {
+		ret = net_if_l2(iface)->set_link_addr(iface, addr, len, type);
+		if (ret < 0) {
+			return ret;
+		}
+	}
+
 	ret = net_linkaddr_create(net_if_get_link_addr(iface), addr, len, type);
 	if (ret < 0) {
 		return ret;
@@ -1581,12 +1588,23 @@ extern struct net_if_addr *net_if_addr_ref(struct net_if *iface,
 /**
  * @brief Set a network interface's link address
  *
+ * This is the way to change the link address, for example the MAC address
+ * of an Ethernet interface. The new address is first handed to the L2,
+ * which applies it to the lower layer, for an Ethernet interface by calling
+ * the driver's set_config() with ETHERNET_CONFIG_TYPE_MAC_ADDRESS. Only if
+ * that succeeds the address is stored in the network interface.
+ *
+ * The interface must not be running, so bring it down first if it is.
+ *
  * @param iface Pointer to a network interface structure
  * @param addr A pointer to a uint8_t buffer representing the address.
  * @param len length of the address buffer
  * @param type network bearer type of this link address
  *
- * @return 0 on success
+ * @retval 0 Link address changed
+ * @retval -EPERM Interface is running
+ * @retval -EINVAL Address is too long or not valid for the L2
+ * @retval <0 Other error returned by the L2 or the driver
  */
 static inline int net_if_set_link_addr(struct net_if *iface,
 				       const uint8_t *addr, uint8_t len,
