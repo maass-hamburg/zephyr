@@ -1201,12 +1201,42 @@ static int ethernet_l2_alloc(struct net_if *iface, struct net_pkt *pkt,
 #define ethernet_l2_alloc NULL
 #endif
 
+static int ethernet_set_link_addr(struct net_if *iface, const uint8_t *addr,
+				  uint8_t len, enum net_link_type type)
+{
+	const struct device *dev = net_if_get_device(iface);
+	const struct ethernet_api *eth = dev->api;
+	struct ethernet_config config = { 0 };
+	int ret;
+
+	if ((type != NET_LINK_ETHERNET) || (len != NET_ETH_ADDR_LEN)) {
+		return -EINVAL;
+	}
+
+	/* Drivers that cannot change the MAC address in hardware only
+	 * get the address stored in the network interface.
+	 */
+	if (eth->set_config == NULL) {
+		return 0;
+	}
+
+	memcpy(config.mac_address.addr, addr, NET_ETH_ADDR_LEN);
+
+	ret = eth->set_config(dev, iface, ETHERNET_CONFIG_TYPE_MAC_ADDRESS, &config);
+	if (ret == -ENOTSUP) {
+		return 0;
+	}
+
+	return ret;
+}
+
 NET_L2_DEFINE(ETHERNET_L2) = {
 	.recv = ethernet_recv,
 	.send = ethernet_send,
 	.enable = ethernet_enable,
 	.get_flags = ethernet_flags,
 	.alloc = ethernet_l2_alloc,
+	.set_link_addr = ethernet_set_link_addr,
 };
 
 static void carrier_on_off(struct k_work *work)

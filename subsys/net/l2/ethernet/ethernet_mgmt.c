@@ -35,7 +35,6 @@ static int ethernet_set_config(uint64_t mgmt_request,
 	const struct ethernet_api *api;
 	struct ethernet_config config = { 0 };
 	enum ethernet_config_type type;
-	int ret;
 
 	NET_ASSERT(dev != NULL);
 
@@ -43,10 +42,6 @@ static int ethernet_set_config(uint64_t mgmt_request,
 
 	if (!api) {
 		return -ENOENT;
-	}
-
-	if (!api->set_config) {
-		return -ENOTSUP;
 	}
 
 	if (!data || (len != sizeof(struct ethernet_req_params))) {
@@ -58,34 +53,12 @@ static int ethernet_set_config(uint64_t mgmt_request,
 			return -EACCES;
 		}
 
-		/* We need to remove the old IPv6 link layer address, that is
-		 * generated from old MAC address, from network interface if
-		 * needed.
-		 */
-		if (IS_ENABLED(CONFIG_NET_NATIVE_IPV6) &&
-		    IS_ENABLED(CONFIG_NET_IPV6_IID_EUI_64)) {
-			struct net_in6_addr iid;
-
-			net_ipv6_addr_create_iid(&iid,
-						 net_if_get_link_addr(iface));
-
-			/* No need to check the return value in this case. It
-			 * is not an error if the address is not found atm.
-			 */
-			(void)net_if_ipv6_addr_rm(iface, &iid);
-		}
-
-		memcpy(&config.mac_address, &params->mac_address,
-		       sizeof(struct net_eth_addr));
-		type = ETHERNET_CONFIG_TYPE_MAC_ADDRESS;
-
-		ret = api->set_config(dev, iface, type, &config);
-		if (ret < 0) {
-			return ret;
-		}
-
 		return net_if_set_link_addr(iface, params->mac_address.addr,
 					    sizeof(struct net_eth_addr), NET_LINK_ETHERNET);
+	}
+
+	if (!api->set_config) {
+		return -ENOTSUP;
 	}
 
 	if (mgmt_request == NET_REQUEST_ETHERNET_SET_QAV_PARAM) {
