@@ -2528,6 +2528,15 @@ static int esp32_wifi_set_config(const struct device *dev __unused,
 	if (type == ETHERNET_CONFIG_TYPE_MAC_ADDRESS) {
 		wifi_interface_t ifx = ESP_IF_WIFI_STA;
 		esp_err_t ret;
+
+		/* The initial link address registered at interface init is the
+		 * MAC address the Wi-Fi stack already uses, which must not change
+		 * the Wi-Fi mode.
+		 */
+		if (memcmp(dev_data->mac_addr, config->mac_address.addr,
+			   sizeof(dev_data->mac_addr)) == 0) {
+			return 0;
+		}
 	#if defined(CONFIG_ESP32_WIFI_AP_STA_MODE)
 		if (iface == esp32_wifi_iface_ap) {
 			ifx = ESP_IF_WIFI_AP;
