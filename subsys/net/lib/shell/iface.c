@@ -636,14 +636,13 @@ skip_ipv4:
 
 static int cmd_net_set_mac(const struct shell *sh, size_t argc, char *argv[])
 {
-#if !defined(CONFIG_NET_L2_ETHERNET) || !defined(CONFIG_NET_L2_ETHERNET_MGMT)
-	PR_WARNING("Unsupported command, please enable CONFIG_NET_L2_ETHERNET "
-		"and CONFIG_NET_L2_ETHERNET_MGMT\n");
+#if !defined(CONFIG_NET_L2_ETHERNET)
+	PR_WARNING("Unsupported command, please enable CONFIG_NET_L2_ETHERNET\n");
 	return -ENOEXEC;
 #else
 	struct net_if *iface;
-	struct ethernet_req_params params;
-	char *mac_addr = params.mac_address.addr;
+	struct net_eth_addr mac;
+	uint8_t *mac_addr = mac.addr;
 	int idx;
 	int ret;
 
@@ -672,16 +671,21 @@ static int cmd_net_set_mac(const struct shell *sh, size_t argc, char *argv[])
 		sys_rand_get(mac_addr, NET_ETH_ADDR_LEN);
 		mac_addr[0] = (mac_addr[0] & UNICAST_MASK) | LOCAL_BIT;
 	} else {
-		if ((net_bytes_from_str(mac_addr, sizeof(params.mac_address), argv[2]) < 0) ||
-		    !net_eth_is_addr_valid(&params.mac_address)) {
+		if ((net_bytes_from_str(mac_addr, sizeof(mac), argv[2]) < 0) ||
+		    !net_eth_is_addr_valid(&mac)) {
 			PR_WARNING("Invalid MAC address: %s\n", argv[2]);
 			goto err;
 		}
 	}
 
-	ret = net_mgmt(NET_REQUEST_ETHERNET_SET_MAC_ADDRESS, iface, &params, sizeof(params));
+	if (net_if_is_admin_up(iface)) {
+		PR_WARNING("MAC address cannot be set when interface is operational\n");
+		goto err;
+	}
+
+	ret = net_if_set_link_addr(iface, mac_addr, sizeof(mac), NET_LINK_ETHERNET);
 	if (ret < 0) {
-		if (ret == -EACCES) {
+		if (ret == -EPERM) {
 			PR_WARNING("MAC address cannot be set when interface is operational\n");
 			goto err;
 		}
