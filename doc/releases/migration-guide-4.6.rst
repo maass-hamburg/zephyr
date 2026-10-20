@@ -55,6 +55,22 @@ Bluetooth
 Networking
 **********
 
+* :c:func:`net_if_set_link_addr` now passes the new address to the L2 before storing it. For an
+  Ethernet interface this calls the driver's :c:member:`ethernet_api.set_config` with
+  ``ETHERNET_CONFIG_TYPE_MAC_ADDRESS``, also when the driver registers its address from
+  ``iface_init``. Drivers must therefore accept that call once the hardware is set up. Drivers
+  only call :c:func:`net_if_set_link_addr` to register the initial address, never at runtime and
+  never from that handler. Drivers that cannot change the MAC
+  address return ``-ENOTSUP``, and the address is then only stored in software. The link address
+  is not changed if the handler returns any other error.
+
+* :c:func:`net_if_set_link_addr` rejects an Ethernet interface address with a link type other than
+  ``NET_LINK_ETHERNET`` or a length other than 6 bytes with ``-EINVAL``.
+
+* :c:macro:`NET_REQUEST_ETHERNET_SET_MAC_ADDRESS` is a wrapper around
+  :c:func:`net_if_set_link_addr`. It no longer fails with ``-ENOTSUP`` for drivers without
+  :c:member:`ethernet_api.set_config`; for those, the address is only stored in software.
+
 Other subsystems
 ****************
 

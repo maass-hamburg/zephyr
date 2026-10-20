@@ -63,6 +63,12 @@ New APIs and options
 
 .. zephyr-keep-sorted-start re(^\* \w) ignorecase
 
+* Networking
+
+  * ``NET_L2_DEFINE()`` to define an L2 with designated initializers.
+  * Optional :c:member:`net_l2.set_link_addr` callback, called by
+    :c:func:`net_if_set_link_addr`, so that changing the link address also programs the hardware.
+
 .. zephyr-keep-sorted-stop
 
 .. _boards_added_in_zephyr_4_6:
