@@ -412,4 +412,9 @@ exit:
 	return ot_context;
 }
 
-NET_L2_INIT(OPENTHREAD_L2, openthread_recv, openthread_send, openthread_enable, openthread_flags);
+NET_L2_DEFINE(OPENTHREAD_L2) = {
+	.recv = openthread_recv,
+	.send = openthread_send,
+	.enable = openthread_enable,
+	.get_flags = openthread_flags,
+};

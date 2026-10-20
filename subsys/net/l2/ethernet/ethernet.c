@@ -1201,8 +1201,13 @@ static int ethernet_l2_alloc(struct net_if *iface, struct net_pkt *pkt,
 #define ethernet_l2_alloc NULL
 #endif
 
-NET_L2_INIT(ETHERNET_L2, ethernet_recv, ethernet_send, ethernet_enable,
-	    ethernet_flags, ethernet_l2_alloc);
+NET_L2_DEFINE(ETHERNET_L2) = {
+	.recv = ethernet_recv,
+	.send = ethernet_send,
+	.enable = ethernet_enable,
+	.get_flags = ethernet_flags,
+	.alloc = ethernet_l2_alloc,
+};
 
 static void carrier_on_off(struct k_work *work)
 {

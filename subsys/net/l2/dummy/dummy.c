@@ -105,4 +105,9 @@ static enum net_l2_flags dummy_flags(struct net_if *iface)
 	return NET_L2_MULTICAST;
 }
 
-NET_L2_INIT(DUMMY_L2, dummy_recv, dummy_send, dummy_enable, dummy_flags);
+NET_L2_DEFINE(DUMMY_L2) = {
+	.recv = dummy_recv,
+	.send = dummy_send,
+	.enable = dummy_enable,
+	.get_flags = dummy_flags,
+};

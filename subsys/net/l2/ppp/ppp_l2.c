@@ -422,7 +422,12 @@ uint32_t ppp_peer_async_control_character_map(struct net_if *iface)
 	return ctx->lcp.peer_options.async_map;
 }
 
-NET_L2_INIT(PPP_L2, ppp_recv, ppp_send, ppp_enable, ppp_flags);
+NET_L2_DEFINE(PPP_L2) = {
+	.recv = ppp_recv,
+	.send = ppp_send,
+	.enable = ppp_enable,
+	.get_flags = ppp_flags,
+};
 
 #if defined(CONFIG_NET_SHELL)
 static int get_ppp_context(int idx, struct ppp_context **ctx,

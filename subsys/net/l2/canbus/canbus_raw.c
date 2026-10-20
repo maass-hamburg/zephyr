@@ -51,4 +51,7 @@ static inline int canbus_send(struct net_if *iface, struct net_pkt *pkt)
 	return ret;
 }
 
-NET_L2_INIT(CANBUS_RAW_L2, canbus_recv, canbus_send, NULL, NULL);
+NET_L2_DEFINE(CANBUS_RAW_L2) = {
+	.recv = canbus_recv,
+	.send = canbus_send,
+};

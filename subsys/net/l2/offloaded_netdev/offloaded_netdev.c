@@ -24,4 +24,6 @@ static inline int offloaded_netdev_if_enable(struct net_if *iface, bool state)
 	return off_if->enable(iface, state);
 }
 
-NET_L2_INIT(OFFLOADED_NETDEV, NULL, NULL, offloaded_netdev_if_enable, NULL);
+NET_L2_DEFINE(OFFLOADED_NETDEV) = {
+	.enable = offloaded_netdev_if_enable,
+};

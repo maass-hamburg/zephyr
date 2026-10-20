@@ -690,7 +690,12 @@ static enum net_l2_flags ieee802154_flags(struct net_if *iface)
 	return ctx->flags;
 }
 
-NET_L2_INIT(IEEE802154_L2, ieee802154_recv, ieee802154_send, ieee802154_enable, ieee802154_flags);
+NET_L2_DEFINE(IEEE802154_L2) = {
+	.recv = ieee802154_recv,
+	.send = ieee802154_send,
+	.enable = ieee802154_enable,
+	.get_flags = ieee802154_flags,
+};
 
 void ieee802154_init(struct net_if *iface)
 {
