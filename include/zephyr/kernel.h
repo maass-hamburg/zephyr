@@ -3593,9 +3593,9 @@ __syscall int k_mutex_init(struct k_mutex *mutex);
  *                or one of the special values K_NO_WAIT and
  *                K_FOREVER.
  *
- * @retval 0 Mutex locked.
- * @retval -EBUSY Returned without waiting.
- * @retval -EAGAIN Waiting period timed out.
+ * @retval 0 Mutex locked. The only value returned with K_FOREVER.
+ * @retval -EBUSY Returned without waiting. Only with K_NO_WAIT.
+ * @retval -EAGAIN Waiting period timed out. Only with a finite waiting period.
  */
 __syscall int k_mutex_lock(struct k_mutex *mutex, k_timeout_t timeout);
 
