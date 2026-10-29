@@ -45,19 +45,28 @@ static void set_mtimecmp(uint64_t time)
 #endif
 }
 
+static __maybe_unused uint32_t mtime_32_low(void)
+{
+	return *(volatile uint32_t *)MTIME_REG;
+}
+
+static __maybe_unused uint32_t mtime_32_high(void)
+{
+	return *(volatile uint32_t *)(MTIME_REG + 4);
+}
+
 static uint64_t mtime(void)
 {
 #ifdef CONFIG_64BIT
 	return *(volatile uint64_t *)MTIME_REG;
 #else
-	volatile uint32_t *r = (uint32_t *)MTIME_REG;
 	uint32_t lo, hi;
 
 	/* Likewise, must guard against rollover when reading */
 	do {
-		hi = r[1];
-		lo = r[0];
-	} while (r[1] != hi);
+		hi = mtime_32_high();
+		lo = mtime_32_low();
+	} while (mtime_32_high() != hi);
 
 	return (((uint64_t)hi) << 32) | lo;
 #endif
@@ -67,10 +76,20 @@ static uint64_t mtime(void)
  * Free-running mtime counter plus an absolute mtimecmp compare: a COMPARE
  * backend. mtime is 64 bits wide. The generic core owns the tick accounting;
  * this driver only reads the counter and arms the comparator. The public
- * cycle counter returns raw mtime through the core's default getters.
+ * cycle counter returns raw mtime through the core's default getters, except
+ * on 32-bit CPUs where sys_clock_cycle_get_32() reads only the low word.
  */
 #define TIMER_CORE_BACKEND_COMPARE_ORDERED
 #define TIMER_CORE_COUNTER_WIDTH 64
+
+#ifndef CONFIG_64BIT
+#define TIMER_CORE_HAVE_CYCLE_GET_32
+
+uint32_t sys_clock_cycle_get_32(void)
+{
+	return mtime_32_low();
+}
+#endif
 
 static inline uint64_t timer_driver_cycle_get(void)
 {
