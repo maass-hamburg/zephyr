@@ -7,9 +7,6 @@ if BOARD_CDNS_SWERV
 config BUILD_OUTPUT_BIN
 	default n
 
-config SYS_CLOCK_HW_CYCLES_PER_SEC
-	default $(dt_node_int_prop_int,/cpus/cpu@0,clock-frequency)
-
 config SYS_CLOCK_TICKS_PER_SEC
 	default 100 if WHISPER_TARGET
 
