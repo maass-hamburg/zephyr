@@ -10,6 +10,8 @@
 
 / {
 	cpus {
+		timebase-frequency = <DT_FREQ_M(50)>;
+
 		/delete-node/ cpu@1;
 		/delete-node/ cpu@2;
 		/delete-node/ cpu@3;
@@ -68,10 +70,6 @@
 
 &dram {
 	reg = <0x00000000 DT_SIZE_G(1)>;
-};
-
-&clk_sys {
-	clock-frequency = <DT_FREQ_M(50)>;
 };
 
 &plic0 {

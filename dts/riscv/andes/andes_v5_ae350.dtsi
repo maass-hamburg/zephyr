@@ -7,6 +7,7 @@
 /dts-v1/;
 #include <zephyr/dt-bindings/gpio/gpio.h>
 #include <mem.h>
+#include <freq.h>
 
 / {
 	#address-cells = <1>;
@@ -15,6 +16,7 @@
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
+		timebase-frequency = <DT_FREQ_M(60)>;
 
 		cpu0: cpu@0 {
 			compatible = "andestech,andescore-v5", "riscv";
@@ -420,15 +422,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			clock-frequency = <66000000>;
-			status = "disabled";
-		};
-	};
-
-	clocks {
-		clk_sys: clk_sys {
-			compatible = "fixed-clock";
-			clock-frequency = <60000000>;
-			#clock-cells = <0>;
 			status = "disabled";
 		};
 	};
