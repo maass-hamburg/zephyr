@@ -7,10 +7,15 @@
 /dts-v1/;
 
 #include <microchip/microchip-miv.dtsi>
+#include <freq.h>
 
 / {
 	compatible = "microchip,m2gl025-miv";
 	model = "Microchip M2GL025 with MiV target";
+
+	cpus {
+		timebase-frequency = <DT_FREQ_M(4)>;
+	};
 
 	chosen {
 		zephyr,console = &uart0;
@@ -24,8 +29,4 @@
 	current-speed = <115200>;
 	clock-frequency = <66000000>;
 	status = "okay";
-};
-
-&mtimer {
-	clock-frequency = <4000000>;
 };
