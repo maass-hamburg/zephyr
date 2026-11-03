@@ -56,6 +56,21 @@ Boards
   instead. ``stm32_min_dev_defconfig`` was renamed accordingly to
   :file:`stm32_min_dev_stm32f103x8_defconfig`.
 
+* On the RISC-V SoCs listed below, :kconfig:option:`CONFIG_SYS_CLOCK_HW_CYCLES_PER_SEC` no longer
+  defaults to a ``clock-frequency`` value of the CPU node or of a clock or timer node. It now
+  comes from the ``timebase-frequency`` property of the ``/cpus`` node. Out-of-tree boards that
+  change the CPU or timer clock must set ``timebase-frequency`` on ``/cpus`` to the new rate:
+
+  * AESC Hydrogen and Nitrogen, Intel Nios V, ITE IT51xxx, WCH CH32V, CH32H41x and CH57x, and the
+    Cadence SweRV boards: the value is the CPU ``clock-frequency``.
+  * Andes AE350: the ``clk_sys`` node was removed. Replace overrides of its ``clock-frequency``
+    with ``timebase-frequency``.
+  * Egis ET171: the ``clk_mtimer`` node was removed. Replace it with ``timebase-frequency``.
+  * Microchip Mi-V: the ``clock-frequency`` of the ``mtimer`` node is no longer used. Replace it
+    with ``timebase-frequency``.
+  * C-DAC Thejas32: ``timebase-frequency`` is now the real ``mtime`` rate of 25 kHz instead of
+    the 100 MHz core clock, and the ``mtimer`` node no longer has ``clock-frequency``.
+
 Device Drivers and Devicetree
 *****************************
 
