@@ -13,6 +13,10 @@
 	compatible = "aesc,elemrv-flask-n";
 	model = "ElemRV Flask-N (ElemRV-N)";
 
+	cpus {
+		timebase-frequency = <DT_FREQ_M(20)>;
+	};
+
 	aliases {
 		led0 = &led0;
 	};
