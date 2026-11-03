@@ -15,7 +15,8 @@
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
-		timebase-frequency = <DT_FREQ_M(100)>;
+		/* mtime runs at the core clock divided by 4000, see mtimer */
+		timebase-frequency = <DT_FREQ_K(25)>;
 
 		cpu0: cpu@0 {
 			compatible = "cdac,vega-et1031", "riscv";
@@ -109,7 +110,6 @@
 			reg = <0x20010580 0x8>, <0x20010480 0x8>;
 			reg-names = "mtime", "mtimecmp";
 			interrupts-extended = <&cpu0_intc 7>;
-			clock-frequency = <25000>;
 		};
 	};
 
