@@ -9,6 +9,10 @@
 #include <wch/qingke-v3c.dtsi>
 
 / {
+	cpus {
+		timebase-frequency = <DT_FREQ_K(6400)>;
+	};
+
 	soc {
 		sram0: memory@20000000 {
 			compatible = "mmio-sram";

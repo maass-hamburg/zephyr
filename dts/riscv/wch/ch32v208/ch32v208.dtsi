@@ -8,6 +8,10 @@
 #include <wch/common/ch32v20x_30x_common.dtsi>
 
 / {
+	cpus {
+		timebase-frequency = <DT_FREQ_M(120)>;
+	};
+
 	soc {
 		tim5: counter@40000c00 {
 			compatible = "wch,gptm";

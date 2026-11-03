@@ -21,6 +21,7 @@
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
+		timebase-frequency = <DT_FREQ_M(480)>;
 
 		cpu0: cpu@1 {
 			compatible = "wch,qingke-v5f", "riscv";

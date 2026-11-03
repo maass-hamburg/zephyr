@@ -13,6 +13,10 @@
 #include <zephyr/dt-bindings/reset/ch32v20x_30x-reset.h>
 
 / {
+	cpus {
+		timebase-frequency = <DT_FREQ_M(72)>;
+	};
+
 	clocks {
 		clk_hse: clk-hse {
 			compatible = "wch,ch32v00x-hse-clock";

@@ -8,6 +8,10 @@
 #include <wch/common/ch32v20x_30x_common.dtsi>
 
 / {
+	cpus {
+		timebase-frequency = <DT_FREQ_M(144)>;
+	};
+
 	soc {
 		spi2: spi@40003800 {
 			compatible = "wch,spi";

@@ -15,6 +15,10 @@
 #include <zephyr/dt-bindings/dma/ch32v003-dma.h>
 
 / {
+	cpus {
+		timebase-frequency = <DT_FREQ_M(48)>;
+	};
+
 	clocks {
 		clk_hse: clk-hse {
 			compatible = "wch,ch32v00x-hse-clock";
