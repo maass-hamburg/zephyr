@@ -12,6 +12,10 @@
 	compatible = "egis,egis_et171";
 	model = "Egis ET171C";
 
+	cpus {
+		timebase-frequency = <18037518>;
+	};
+
 	aliases {
 		watchdog0 = &wdt;
 		led0 = &gpio_led0;
@@ -38,14 +42,6 @@
 		gpio_led1: led1 {
 			label = "LED1";
 			gpios = <&gpio0 1 GPIO_ACTIVE_LOW>;
-		};
-	};
-
-	clocks {
-		clk_mtimer: clk_mtimer {
-			compatible = "fixed-clock";
-			clock-frequency = <18037518>;
-			status = "disabled";
 		};
 	};
 

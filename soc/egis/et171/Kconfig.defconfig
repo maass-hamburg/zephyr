@@ -5,9 +5,6 @@ if SOC_EGIS_ET171
 
 rsource "Kconfig.defconfig.et171"
 
-config SYS_CLOCK_HW_CYCLES_PER_SEC
-	default $(dt_node_int_prop_int,/clocks/clk_mtimer,clock-frequency)
-
 config KERNEL_ENTRY
 	default "entry"
 
