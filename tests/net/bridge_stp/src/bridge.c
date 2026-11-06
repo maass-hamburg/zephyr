@@ -223,10 +223,26 @@ static int fake_set_config(const struct device *dev, struct net_if *iface,
 	}
 }
 
+static int fake_get_config(const struct device *dev, struct net_if *iface,
+			   enum ethernet_config_type type, struct ethernet_config *config)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(iface);
+
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS:
+		config->supported_link_speeds = LINK_FULL_100BASE;
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static const struct ethernet_api fake_api = {
 	.iface_api.init = fake_iface_init,
 	.get_capabilities = fake_get_capabilities,
 	.set_config = fake_set_config,
+	.get_config = fake_get_config,
 	.send = fake_send,
 };
 
