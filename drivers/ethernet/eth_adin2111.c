@@ -1521,10 +1521,26 @@ static int adin2111_init(const struct device *dev)
 	return ret;
 }
 
+static int adin2111_port_get_config(const struct device *dev __unused,
+				    struct net_if *iface __unused,
+				    enum ethernet_config_type type,
+				    struct ethernet_config *config)
+{
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS:
+		/* 10BASE-T1L */
+		config->supported_link_speeds = LINK_FULL_10BASE;
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static const struct ethernet_api adin2111_port_api = {
 	.iface_api.init = adin2111_port_iface_init,
 	.get_capabilities = adin2111_port_get_capabilities,
 	.set_config = adin2111_port_set_config,
+	.get_config = adin2111_port_get_config,
 	.send = adin2111_port_send,
 #if defined(CONFIG_NET_STATISTICS_ETHERNET)
 	.get_stats = adin2111_port_get_stats,

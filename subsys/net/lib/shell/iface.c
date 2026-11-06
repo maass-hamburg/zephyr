@@ -86,6 +86,42 @@ static void print_supported_ethernet_capabilities(
 	}
 #endif
 }
+
+struct ethernet_link_speed {
+	enum phy_link_speed speed;
+	const char * const description;
+};
+
+#define LS(spd, desc) { .speed = spd, .description = desc }
+
+static const struct ethernet_link_speed eth_link_speeds[] = {
+	LS(LINK_HALF_10BASE,   "10 Mbits half-duplex"),
+	LS(LINK_FULL_10BASE,   "10 Mbits full-duplex"),
+	LS(LINK_HALF_100BASE,  "100 Mbits half-duplex"),
+	LS(LINK_FULL_100BASE,  "100 Mbits full-duplex"),
+	LS(LINK_HALF_1000BASE, "1 Gbits half-duplex"),
+	LS(LINK_FULL_1000BASE, "1 Gbits full-duplex"),
+	LS(LINK_FULL_2500BASE, "2.5 Gbits full-duplex"),
+	LS(LINK_FULL_5000BASE, "5 Gbits full-duplex"),
+};
+
+static void print_supported_link_speeds(const struct shell *sh, struct net_if *iface)
+{
+	struct ethernet_config config;
+
+	if (net_eth_get_hw_config(iface, ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS,
+				  &config) != 0) {
+		return;
+	}
+
+	PR("Ethernet link speeds supported:\n");
+
+	ARRAY_FOR_EACH(eth_link_speeds, i) {
+		if ((config.supported_link_speeds & eth_link_speeds[i].speed) != 0) {
+			PR("\t%s\n", eth_link_speeds[i].description);
+		}
+	}
+}
 #endif /* CONFIG_NET_L2_ETHERNET */
 
 #ifdef CONFIG_ETH_PHY_DRIVER
@@ -396,6 +432,7 @@ static void iface_cb(struct net_if *iface, void *user_data)
 	if (net_if_l2(iface) == &NET_L2_GET_NAME(ETHERNET)) {
 		PR("Ethernet capabilities supported:\n");
 		print_supported_ethernet_capabilities(sh, iface);
+		print_supported_link_speeds(sh, iface);
 
 #ifdef CONFIG_ETH_PHY_DRIVER
 		const struct device *phy_dev = net_eth_get_phy(iface);

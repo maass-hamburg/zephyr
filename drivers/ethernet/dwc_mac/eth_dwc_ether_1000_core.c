@@ -482,6 +482,32 @@ static int dwmac_set_config(const struct device *dev, struct net_if *iface __unu
 	return 0;
 }
 
+static int dwmac_get_config(const struct device *dev, struct net_if *iface __unused,
+			    enum ethernet_config_type type, struct ethernet_config *config)
+{
+	struct dwmac_priv *p = dev->data;
+	bool has_10_100, has_1000, has_half_duplex;
+
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS:
+		if (p->feature0 == 0U) {
+			/* early IP versions have no feature register */
+			has_10_100 = true;
+			has_1000 = true;
+			has_half_duplex = true;
+		} else {
+			has_10_100 = (p->feature0 & DWMAC_HWFR_10_100) != 0;
+			has_1000 = (p->feature0 & DWMAC_HWFR_1000) != 0;
+			has_half_duplex = (p->feature0 & DWMAC_HWFR_HD) != 0;
+		}
+		config->supported_link_speeds =
+			dwmac_supported_link_speeds(has_10_100, has_1000, has_half_duplex);
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static void phy_link_state_changed(const struct device *phy_dev __unused,
 				   struct phy_link_state *state, void *user_data)
 {
@@ -739,6 +765,7 @@ const struct ethernet_api dwmac_api = {
 	.iface_api.init = dwmac_iface_init,
 	.get_capabilities = dwmac_caps,
 	.set_config = dwmac_set_config,
+	.get_config = dwmac_get_config,
 	.get_phy = dwmac_get_phy,
 	.send = dwmac_send,
 #if defined(CONFIG_PTP_CLOCK_DWC_MAC)

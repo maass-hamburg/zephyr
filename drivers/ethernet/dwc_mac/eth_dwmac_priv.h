@@ -87,6 +87,18 @@ BUILD_ASSERT(DT_HAS_COMPAT_STATUS_OKAY(snps_dwmac),
 
 #define DWMAC_DT_NODE DT_INST(0, snps_dwmac)
 
+/*
+ * Whether a MAC is wired to its PHY through a gigabit capable interface.
+ * The check is made across all instances, as none or all of them are
+ * expected to have one.
+ */
+#define DWMAC_NODE_HAS_PHY_IFACE(type, node) DT_ENUM_HAS_VALUE(node, phy_connection_type, type)
+#define DWMAC_NODE_HAS_GIGABIT_IFACE(node)                                                         \
+	FOR_EACH_FIXED_ARG(DWMAC_NODE_HAS_PHY_IFACE, (||), node, gmii, rgmii, rgmii_id,            \
+			   rgmii_txid, rgmii_rxid) ||
+
+#define DWMAC_HAS_GIGABIT_IFACE (DT_FOREACH_STATUS_OKAY(snps_dwmac, DWMAC_NODE_HAS_GIGABIT_IFACE) 0)
+
 /* multicast filter capabilities of the hardware */
 #define DWMAC_MULTICAST_FILTER_BINS	DT_PROP_OR(DWMAC_DT_NODE, snps_multicast_filter_bins, 0)
 #define DWMAC_PERFECT_FILTER_ENTRIES	DT_PROP(DWMAC_DT_NODE, snps_perfect_filter_entries)
@@ -284,6 +296,32 @@ void dwmac_platform_link_speed_changed(const struct device *dev, enum phy_link_s
 const struct device *dwmac_get_ptp_clock(const struct device *dev, struct net_if *iface);
 #endif
 extern const struct ethernet_api dwmac_api;
+
+/*
+ * The link speeds a MAC supports from its hardware features. Gigabit is only
+ * reported when the PHY interface can carry it.
+ */
+static inline enum phy_link_speed dwmac_supported_link_speeds(bool has_10_100, bool has_1000,
+							      bool has_half_duplex)
+{
+	enum phy_link_speed speeds = 0;
+
+	if (has_10_100) {
+		speeds |= LINK_FULL_10BASE | LINK_FULL_100BASE;
+		if (has_half_duplex) {
+			speeds |= LINK_HALF_10BASE | LINK_HALF_100BASE;
+		}
+	}
+
+	if (has_1000 && DWMAC_HAS_GIGABIT_IFACE) {
+		speeds |= LINK_FULL_1000BASE;
+		if (has_half_duplex) {
+			speeds |= LINK_HALF_1000BASE;
+		}
+	}
+
+	return speeds;
+}
 
 /*
  * MAC Register Definitions

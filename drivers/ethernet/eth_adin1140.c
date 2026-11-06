@@ -981,10 +981,27 @@ static int adin1140_init(const struct device *dev)
 	return rc;
 }
 
+static int adin1140_get_config(const struct device *dev, struct net_if *iface,
+			       enum ethernet_config_type type, struct ethernet_config *config)
+{
+	ARG_UNUSED(dev);
+	ARG_UNUSED(iface);
+
+	switch (type) {
+	case ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS:
+		/* 10BASE-T1S */
+		config->supported_link_speeds = LINK_HALF_10BASE;
+		return 0;
+	default:
+		return -ENOTSUP;
+	}
+}
+
 static const struct ethernet_api adin1140_eth_api = {
 	.iface_api.init = adin1140_iface_init,
 	.get_capabilities = adin1140_get_capabilities,
 	.set_config = adin1140_set_config,
+	.get_config = adin1140_get_config,
 	.send = adin1140_send,
 };
 

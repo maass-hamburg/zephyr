@@ -394,6 +394,8 @@ static int eth_nxp_enet_get_config(const struct device *dev,
 				   enum ethernet_config_type type,
 				   struct ethernet_config *cfg)
 {
+	const struct nxp_enet_mac_config *config = dev->config;
+
 	switch (type) {
 	case ETHERNET_CONFIG_TYPE_RX_CHECKSUM_SUPPORT:
 	case ETHERNET_CONFIG_TYPE_TX_CHECKSUM_SUPPORT:
@@ -402,6 +404,13 @@ static int eth_nxp_enet_get_config(const struct device *dev,
 				      ETHERNET_CHECKSUM_SUPPORT_IPV6_HEADER	|
 				      ETHERNET_CHECKSUM_SUPPORT_TCP		|
 				      ETHERNET_CHECKSUM_SUPPORT_UDP;
+		return 0;
+	case ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS:
+		cfg->supported_link_speeds =
+			LINK_HALF_10BASE | LINK_FULL_10BASE | LINK_HALF_100BASE | LINK_FULL_100BASE;
+		if (config->phy_mode == NXP_ENET_RGMII_MODE) {
+			cfg->supported_link_speeds |= LINK_FULL_1000BASE;
+		}
 		return 0;
 	default:
 		break;

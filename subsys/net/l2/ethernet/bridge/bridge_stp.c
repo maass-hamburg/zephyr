@@ -334,6 +334,24 @@ static uint32_t speed_to_cost(uint32_t mbps)
 	return (uint32_t)(20000000ULL / mbps);
 }
 
+/* The fastest of a set of link speeds in Mb/s, 0 if the set is empty */
+static uint32_t fastest_speed_mbps(enum phy_link_speed speeds)
+{
+	if ((speeds & LINK_FULL_5000BASE) != 0) {
+		return 5000U;
+	} else if ((speeds & LINK_FULL_2500BASE) != 0) {
+		return 2500U;
+	} else if (PHY_LINK_IS_SPEED_1000M(speeds) != 0) {
+		return 1000U;
+	} else if (PHY_LINK_IS_SPEED_100M(speeds) != 0) {
+		return 100U;
+	} else if (PHY_LINK_IS_SPEED_10M(speeds) != 0) {
+		return 10U;
+	} else {
+		return 0U;
+	}
+}
+
 /* Port Path Cost from the link speed, and point-to-point from the duplex.
  * Without a PHY, the fastest speed the MAC supports is used, and the link
  * is taken to be full duplex as switched Ethernet is.
@@ -341,42 +359,25 @@ static uint32_t speed_to_cost(uint32_t mbps)
 static void link_params(struct net_if *iface, uint32_t *cost, bool *full_duplex)
 {
 	const struct device *phy = net_eth_get_phy(iface);
-	enum ethernet_hw_caps caps;
+	struct ethernet_config config;
 	struct phy_link_state state;
+	uint32_t mbps = 0U;
 
 	*cost = ETH_RSTP_DEFAULT_PATH_COST;
 	*full_duplex = true;
 
 	if (phy != NULL && phy_get_link_state(phy, &state) == 0 && state.is_up) {
 		*full_duplex = PHY_LINK_IS_FULL_DUPLEX(state.speed) != 0;
-
-		if (PHY_LINK_IS_SPEED_1000M(state.speed) != 0) {
-			*cost = speed_to_cost(1000U);
-		} else if (PHY_LINK_IS_SPEED_100M(state.speed) != 0) {
-			*cost = speed_to_cost(100U);
-		} else if (PHY_LINK_IS_SPEED_10M(state.speed) != 0) {
-			*cost = speed_to_cost(10U);
-		} else if ((state.speed & LINK_FULL_2500BASE) != 0) {
-			*cost = speed_to_cost(2500U);
-		} else if ((state.speed & LINK_FULL_5000BASE) != 0) {
-			*cost = speed_to_cost(5000U);
-		}
-
-		return;
+		mbps = fastest_speed_mbps(state.speed);
+	} else if (net_eth_get_hw_config(iface, ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS,
+					 &config) == 0) {
+		mbps = fastest_speed_mbps(config.supported_link_speeds);
+	} else {
+		/* Neither a link nor the MAC tells the speed, keep the default */
 	}
 
-	caps = net_eth_get_hw_capabilities(iface);
-
-	if ((caps & ETHERNET_LINK_5000BASE) != 0) {
-		*cost = speed_to_cost(5000U);
-	} else if ((caps & ETHERNET_LINK_2500BASE) != 0) {
-		*cost = speed_to_cost(2500U);
-	} else if ((caps & ETHERNET_LINK_1000BASE) != 0) {
-		*cost = speed_to_cost(1000U);
-	} else if ((caps & ETHERNET_LINK_100BASE) != 0) {
-		*cost = speed_to_cost(100U);
-	} else if ((caps & ETHERNET_LINK_10BASE) != 0) {
-		*cost = speed_to_cost(10U);
+	if (mbps != 0U) {
+		*cost = speed_to_cost(mbps);
 	}
 }
 

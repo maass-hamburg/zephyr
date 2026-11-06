@@ -26,6 +26,7 @@
 #include <zephyr/net/ethernet_vlan.h>
 #include <zephyr/net/ptp_time.h>
 #include <zephyr/net/virtual.h>
+#include <zephyr/net/phy.h>
 #include <zephyr/random/random.h>
 
 #if defined(CONFIG_NVMEM)
@@ -241,6 +242,7 @@ enum ethernet_config_type {
 	ETHERNET_CONFIG_TYPE_EXTRA_TX_PKT_HEADROOM,
 	ETHERNET_CONFIG_TYPE_STP_PORT_STATE,
 	ETHERNET_CONFIG_TYPE_FDB_FLUSH,
+	ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS,
 };
 
 enum ethernet_qav_param_type {
@@ -566,6 +568,9 @@ struct ethernet_config {
 		uint16_t extra_tx_pkt_headroom;
 
 		enum ethernet_stp_port_state stp_port_state;
+
+		/* Link speeds and duplex modes the MAC supports, read only */
+		enum phy_link_speed supported_link_speeds;
 	} /**< Value for the selected Ethernet configuration type */;
 };
 
