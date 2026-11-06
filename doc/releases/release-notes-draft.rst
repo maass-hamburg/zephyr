@@ -85,6 +85,11 @@ Libraries / Subsystems
     :c:macro:`NET_EVENT_L4_DNS_LOST` and :c:func:`conn_mgr_dns_is_ready`.
   * :c:func:`dns_resolve_get_server_families` reports the address families of the
     available unicast DNS servers.
+  * An Ethernet driver can report the link speeds and duplex modes its MAC supports as
+    :c:enum:`phy_link_speed` through ``get_config`` with
+    :c:enumerator:`ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS`, queried with
+    :c:func:`net_eth_get_hw_config`. The net shell lists them for an interface and the STP
+    bridge takes the path cost of a port without a PHY link from them.
 
   * Ethernet bridge
 

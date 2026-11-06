@@ -132,6 +132,13 @@ Ethernet
   ``reset-deassertion-timeout-ms`` with ``reset-deassert-us``, multiplying its value by 1000 as
   it is now in microseconds. (:github:`124061`)
 
+* The ``ETHERNET_LINK_*`` flags have been removed from :c:enum:`ethernet_hw_caps`. Drivers must
+  drop them from their ``get_capabilities`` implementation and can report the link speeds and
+  duplex modes their MAC supports as :c:enum:`phy_link_speed` through ``get_config`` with
+  :c:enumerator:`ETHERNET_CONFIG_TYPE_SUPPORTED_LINK_SPEEDS` instead. Applications query them
+  with :c:func:`net_eth_get_hw_config`; the negotiated speed of a link comes from
+  :c:func:`phy_get_link_state`. (:github:`112086`)
+
 OPAMP
 =====
 
